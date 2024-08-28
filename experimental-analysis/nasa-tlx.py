@@ -2,6 +2,9 @@ import tkinter as tk
 from tkinter import messagebox
 import csv
 import os
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy.stats as stats
 
 # Initialize participant count
 participant_count = 1
@@ -88,6 +91,112 @@ def clear_inputs():
     effort_entry.delete(0, tk.END)
     frustration_entry.delete(0, tk.END)
 
+def plot_data():
+    if os.path.exists(csv_file):
+        with open(csv_file, mode='r') as file:
+            reader = csv.reader(file)
+            next(reader)  # Skip header
+            data = list(reader)
+
+            if not data:
+                messagebox.showerror("Error", "No data to plot.")
+                return
+
+            participants = [int(row[0]) for row in data]
+            mental_demand = [int(row[1]) for row in data]
+            physical_demand = [int(row[2]) for row in data]
+            temporal_demand = [int(row[3]) for row in data]
+            performance = [int(row[4]) for row in data]
+            effort = [int(row[5]) for row in data]
+            frustration = [int(row[6]) for row in data]
+            overall_score = [float(row[7]) for row in data]
+
+            # Calculate statistics
+            subscales = [mental_demand, physical_demand, temporal_demand, performance, effort, frustration]
+            subscale_names = ["Mental Demand", "Physical Demand", "Temporal Demand", "Performance", "Effort", "Frustration"]
+
+            mean_values = [np.mean(subscale) for subscale in subscales]
+            std_dev_values = [np.std(subscale) for subscale in subscales]
+
+            # Separate window for subscale plots with trend lines
+            plt.figure(figsize=(10, 6))
+            for i, subscale in enumerate(subscales):
+                plt.plot(participants, subscale, label=subscale_names[i], marker='o')
+                z = np.polyfit(participants, subscale, 1)
+                p = np.poly1d(z)
+                plt.plot(participants, p(participants), linestyle='--')
+            plt.title("NASA-TLX Subscales with Trend Lines", fontsize=14)
+            plt.xlabel("Participant Number", fontsize=12)
+            plt.ylabel("Score (0-100)", fontsize=12)
+            plt.legend(fontsize=10)
+            plt.grid(True)
+            plt.tight_layout(pad=2.0)
+            plt.show()
+
+            # Separate window for overall score plot
+            plt.figure(figsize=(10, 6))
+            plt.plot(participants, overall_score, label="Overall Score", marker='o', color='red')
+            z = np.polyfit(participants, overall_score, 1)
+            p = np.poly1d(z)
+            plt.plot(participants, p(participants), linestyle='--', color='red')
+            plt.title("NASA-TLX Overall Score with Trend Line", fontsize=14)
+            plt.xlabel("Participant Number", fontsize=12)
+            plt.ylabel("Overall Score", fontsize=12)
+            plt.legend(fontsize=10)
+            plt.grid(True)
+            plt.tight_layout(pad=2.0)
+            plt.show()
+
+            # Separate window for histogram of subscales
+            plt.figure(figsize=(10, 6))
+            for i, subscale in enumerate(subscales):
+                plt.hist(subscale, alpha=0.5, bins=10, label=subscale_names[i])
+            plt.title("Histogram of NASA-TLX Subscales", fontsize=14)
+            plt.xlabel("Score (0-100)", fontsize=12)
+            plt.ylabel("Frequency", fontsize=12)
+            plt.legend(fontsize=10)
+            plt.grid(True)
+            plt.tight_layout(pad=2.0)
+            plt.show()
+
+            # Separate window for box and whiskers plot
+            plt.figure(figsize=(10, 6))
+            plt.boxplot(subscales, labels=subscale_names)
+            plt.title("Box and Whiskers Plot of NASA-TLX Subscales", fontsize=14)
+            plt.ylabel("Score (0-100)", fontsize=12)
+            plt.xticks(rotation=15, fontsize=10)
+            plt.grid(True)
+            plt.tight_layout(pad=2.0)
+            plt.show()
+
+            # Separate window for normal distribution plots
+            plt.figure(figsize=(10, 6))
+            x = np.linspace(0, 100, 1000)
+            for i, subscale in enumerate(subscales):
+                mu, std = stats.norm.fit(subscale)
+                p = stats.norm.pdf(x, mu, std)
+                plt.plot(x, p, label=f'{subscale_names[i]} (mean={mu:.2f}, std={std:.2f})')
+            plt.title("Normal Distributions of NASA-TLX Subscales", fontsize=14)
+            plt.xlabel("Score (0-100)", fontsize=12)
+            plt.ylabel("Probability Density", fontsize=12)
+            plt.legend(fontsize=10)
+            plt.grid(True)
+            plt.tight_layout(pad=2.0)
+            plt.show()
+
+
+            # Display mean and standard deviation in a message box
+            stats_message = "Subscale Statistics:\n"
+            for i, name in enumerate(subscale_names):
+                stats_message += f"{name}: Mean = {mean_values[i]:.2f}, Std Dev = {std_dev_values[i]:.2f}\n"
+            messagebox.showinfo("Statistics", stats_message)
+
+    else:
+        messagebox.showerror("Error", "CSV file does not exist. Please save some data first.")
+
+
+
+
 # Initialize the main application window
 app = tk.Tk()
 app.title("NASA TLX Survey")
@@ -126,6 +235,10 @@ tk.Label(app, text="How insecure, discouraged, irritated, stressed, and annoyed 
 # Button to submit the scores
 submit_button = tk.Button(app, text="Submit", command=save_to_csv)
 submit_button.grid(row=12, column=0, columnspan=2, pady=10, padx=50)
+
+# Button to plot the data
+plot_button = tk.Button(app, text="Plot Data", command=plot_data)
+plot_button.grid(row=13, column=0, columnspan=2, pady=10, padx=50)
 
 # Run the application
 app.mainloop()
