@@ -2,155 +2,199 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-
+from sklearn.linear_model import LinearRegression
 # Load the data from the CSV file
-csv_file = 'merged_nasa_tlx_with_time_scores.csv'
+csv_file = 'merged_nasa_tlx_with_maze_results.csv'
 data = pd.read_csv(csv_file)
 
-# Calculate performance based on time scores
-# Normalize time scores so that the lowest time gets 100% and the highest gets 0%
-# Calculate performance based on time scores
-min_time = data['Time Score'].min()
-max_time = data['Time Score'].max()
-data['Driving Performance'] = 100 * (max_time - data['Time Score']) / (max_time - min_time)
+# Convert Maze score from percentage string to float
+data['Maze score'] = data['Maze score'].str.rstrip('%').astype(float)
 
-# Group the data by 'Delay' and calculate the mean Driving Performance for each delay
-grouped_data = data.groupby('Delay')['Driving Performance'].mean().reset_index()
+# Define function to plot line and fill with regression line and weights
+def plot_with_regression(x, y, data, color, xlabel, ylabel, title, weights=None):
+    plt.figure(figsize=(14, 8))
+    sns.lineplot(x=x, y=y, data=data, color=color, linewidth=2.5)
+    plt.fill_between(data[x], data[y], color=color, alpha=0.4)
+    sns.regplot(x=x, y=y, data=data, scatter=False, color=color, line_kws={"linewidth": 2, "linestyle": "--"})
+    
+    # Add weights as text annotations
+    if weights:
+        weight_text = "\n".join([f"{dim}: {wt*100:.1f}%" for dim, wt in weights.items()])
+        plt.text(0.98, 0.02, weight_text, fontsize=12, color='black', ha='right', va='bottom', transform=plt.gca().transAxes,
+                 bbox=dict(facecolor='white', alpha=0.7, edgecolor='black'))
+    
+    plt.title(title, fontsize=20, fontweight='bold')
+    plt.xlabel(xlabel, fontsize=16)
+    plt.ylabel(ylabel, fontsize=16)
+    plt.ylim(0, 100)
+    plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+    plt.gca().patch.set_facecolor('#f7f7f7')
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.tight_layout()
+    plt.show()
 
-# Set the style
-sns.set(style="whitegrid")
+# Plot Maze Score vs. Time Delays
+grouped_maze_data = data.groupby('Delays')['Maze score'].mean().reset_index()
+plot_with_regression(
+    x='Delays', y='Maze score', data=grouped_maze_data,
+    color='orange', xlabel='Time Delay (ms)', ylabel='Maze Score (%)',
+    title='Maze Score vs. Time Delays'
+)
 
-# Create a figure for the area plot
-plt.figure(figsize=(14, 8))
+# Assign weights to each NASA TLX dimension and calculate weighted scores
+weights = {
+    "Mental Demand": 0.25,
+    "Physical Demand": 0.0,
+    "Temporal Demand": 0.25,
+    "Performance": 0.00,
+    "Effort": 0.25,
+    "Frustration": 0.25
+}
+weights = {k: v / sum(weights.values()) for k, v in weights.items()}
 
-# Create the area plot
-sns.lineplot(x='Delay', y='Driving Performance', data=grouped_data, color='blue', linewidth=2.5)
-plt.fill_between(grouped_data['Delay'], grouped_data['Driving Performance'], color='skyblue', alpha=0.4)
-sns.regplot(x='Delay', y='Driving Performance', data=grouped_data, scatter=False, color='blue', line_kws={"linewidth": 2, "linestyle": "--"})
-# Customize the plot
-plt.title('Average Driving Performance vs. Time Delays', fontsize=20, fontweight='bold')
-plt.xlabel('Time Delay (ms)', fontsize=16)
-plt.ylabel('Average Driving Performance (%)', fontsize=16)
-plt.ylim(0, 100)  # Ensures the y-axis goes from 0 to 100
-plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+for dimension, weight in weights.items():
+    data[f'Weighted {dimension}'] = data[dimension] * weight
 
-# Add custom styling
-plt.gca().patch.set_facecolor('#f7f7f7')  # Set background color
-plt.xticks(fontsize=12)
-plt.yticks(fontsize=12)
+data['Weighted NASA TLX Score'] = data[[f'Weighted {dim}' for dim in weights.keys()]].sum(axis=1)
 
-# Tight layout
-plt.tight_layout()
+# Calculate performance based on time scores and overall performance
+min_time, max_time = data['Time Scores'].min(), data['Time Scores'].max()
+data['Driving Performance'] = 100 * (max_time - data['Time Scores']) / (max_time - min_time)
+data['Overall Performance'] = (data['Driving Performance'] + data['Maze score']) / 2
 
-# Show the plot
-plt.show()
+# Plot Driving Performance vs. Time Delays
+grouped_driving_data = data.groupby('Delays')['Driving Performance'].mean().reset_index()
+plot_with_regression(
+    x='Delays', y='Driving Performance', data=grouped_driving_data,
+    color='blue', xlabel='Time Delay (ms)', ylabel='Driving Performance (%)',
+    title='Driving Performance vs. Time Delays'
+)
 
-# Now, create a single figure that compares each NASA TLX dimension score vs time delays
-dimensions = [
-    "Mental Demand", 
-    "Physical Demand", 
-    "Temporal Demand", 
-    "Performance", 
-    "Effort", 
-    "Frustration"
-]
+# Plot Overall Performance vs. Time Delays
+grouped_data = data.groupby('Delays').agg({
+    'Driving Performance': 'mean',
+    'Maze score': 'mean',
+    'Overall Performance': 'mean'
+}).reset_index()
+plot_with_regression(
+    x='Delays', y='Overall Performance', data=grouped_data,
+    color='green', xlabel='Time Delay (ms)', ylabel='Overall Performance (%)',
+    title='Overall Performance (Driving + Maze) vs. Time Delays'
+)
 
-# Create a new figure for the dimension comparison
-plt.figure(figsize=(14, 8))
 
-# Plot each dimension with both line and scatter
+# Comparison of NASA TLX Dimension Scores vs Time Delays
+dimensions = ["Mental Demand", "Physical Demand", "Temporal Demand", "Performance", "Effort", "Frustration"]
 palette = sns.color_palette("husl", len(dimensions))
-for i, dimension in enumerate(dimensions):
-    sns.lineplot(x='Delay', y=dimension, data=data, marker='o', color=palette[i], label=dimension, linewidth=2.5)
-    sns.scatterplot(x='Delay', y=dimension, data=data, color=palette[i], s=100, edgecolor='black')
-    sns.regplot(x='Delay', y=dimension, data=data, scatter=False, color=palette[i], line_kws={"linewidth": 2, "linestyle": "--"})
 
-# Customize the plot
+plt.figure(figsize=(14, 8))
+for i, dimension in enumerate(dimensions):
+    sns.lineplot(x='Delays', y=dimension, data=data, marker='o', color=palette[i], label=dimension, linewidth=2.5)
+    sns.scatterplot(x='Delays', y=dimension, data=data, color=palette[i], s=100, edgecolor='black')
+    sns.regplot(x='Delays', y=dimension, data=data, scatter=False, color=palette[i], line_kws={"linewidth": 2, "linestyle": "--"})
 plt.title('Comparison of NASA TLX Dimension Scores vs Time Delays', fontsize=20, fontweight='bold')
 plt.xlabel('Time Delay (ms)', fontsize=16)
 plt.ylabel('NASA TLX Score', fontsize=16)
 plt.ylim(0, 100)
 plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
 plt.legend(title='NASA TLX Dimensions', fontsize=12, title_fontsize=14, loc='upper right', frameon=True, framealpha=0.9, shadow=True)
-
-# Add a custom background color to the plot
 plt.gca().patch.set_facecolor('#f0f0f0')
-
-# Adjust layout to prevent overlap
 plt.tight_layout()
-
-# Show the plot
 plt.show()
 
-# Now add an area plot for the mean of each dimension across time delays
-# Group the data by 'Delay' and calculate the mean for each dimension
-grouped_data_dimensions = data.groupby('Delay')[dimensions].mean().reset_index()
-
-# Create a new figure for the area plot of dimensions
+# Area plot for mean NASA TLX dimension scores across time delays
+grouped_data_dimensions = data.groupby('Delays')[dimensions].mean().reset_index()
 plt.figure(figsize=(14, 8))
-
-# Plot each dimension with a line and fill (area plot)
 for i, dimension in enumerate(dimensions):
-    sns.lineplot(x='Delay', y=dimension, data=grouped_data_dimensions, color=palette[i], label=dimension, linewidth=2.5)
-    plt.fill_between(grouped_data_dimensions['Delay'], grouped_data_dimensions[dimension], color=palette[i], alpha=0.2)
-    sns.regplot(x='Delay', y=dimension, data=grouped_data_dimensions, scatter=False, color=palette[i], line_kws={"linewidth": 2, "linestyle": "--"})
-
-# Customize the plot
+    sns.lineplot(x='Delays', y=dimension, data=grouped_data_dimensions, color=palette[i], label=dimension, linewidth=2.5)
+    plt.fill_between(grouped_data_dimensions['Delays'], grouped_data_dimensions[dimension], color=palette[i], alpha=0.2)
+    sns.regplot(x='Delays', y=dimension, data=grouped_data_dimensions, scatter=False, color=palette[i], line_kws={"linewidth": 2, "linestyle": "--"})
 plt.title('Mean NASA TLX Dimension Scores vs Time Delays', fontsize=20, fontweight='bold')
 plt.xlabel('Time Delay (ms)', fontsize=16)
 plt.ylabel('Mean NASA TLX Score', fontsize=16)
 plt.ylim(0, 100)
 plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
 plt.legend(title='NASA TLX Dimensions', fontsize=12, title_fontsize=14, loc='upper right', frameon=True, framealpha=0.9, shadow=True)
-
-# Add a custom background color to the plot
 plt.gca().patch.set_facecolor('#f0f0f0')
-
-# Adjust layout to prevent overlap
 plt.tight_layout()
-
-# Show the plot
 plt.show()
 
-# 1. Correlation Heatmap
+# Correlation heatmap
 plt.figure(figsize=(10, 8))
-correlation_matrix = data[['Delay', 'Driving Performance'] + dimensions].corr()
-sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, linewidths=0.5)
-plt.title('Correlation Heatmap of Time Delays, Performance, and NASA TLX Dimensions', fontsize=18, fontweight='bold')
+correlation_matrix = data[['Delays', 'Driving Performance', 'Maze score', 'Overall Performance', 'Weighted NASA TLX Score'] + dimensions].corr()
+sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', vmin=-1, vmax=1, linewidths=0.5)
+plt.title('Correlation Heatmap of Time Delays, Performance, Maze, and NASA TLX Dimensions', fontsize=18, fontweight='bold')
 plt.show()
 
-# 2. Pair Plot for deeper insights into relationships between variables
-# sns.pairplot(data[['Delay', 'Driving Performance'] + dimensions], kind='reg', diag_kind='kde')
-# plt.suptitle('Pair Plot of Time Delays, Performance, and NASA TLX Dimensions', fontsize=18, fontweight='bold', y=1.02)
-# plt.show()
-
-# 3. Box Plots for distribution and density comparison
+# Box plots for distribution and density comparison
 plt.figure(figsize=(14, 10))
 for i, dimension in enumerate(dimensions):
     plt.subplot(3, 2, i + 1)
-    sns.boxplot(x='Delay', y=dimension, data=data)
+    sns.boxplot(x='Delays', y=dimension, data=data)
     plt.title(f'{dimension} Distribution Across Time Delays')
     plt.ylim(0, 100)
     plt.grid(True, linestyle='--', linewidth=0.5)
-
 plt.tight_layout()
 plt.show()
 
-# 4. Distribution Plots for Performance and Mental Demand
-plt.figure(figsize=(14, 6))
+# Plot unweighted NASA TLX Score vs. Time Delays
+grouped_data = data.groupby('Delays')['Overall Score'].mean().reset_index()
+plot_with_regression(
+    x='Delays', y='Overall Score', data=grouped_data,
+    color='red', xlabel='Time Delay (ms)', ylabel='NASA TLX Score',
+    title='NASA TLX Score vs. Time Delays'
+)
 
-plt.subplot(1, 2, 1)
-sns.histplot(data['Driving Performance'], kde=True, color='blue', bins=20)
-plt.title('Distribution of Driving Performance', fontsize=16, fontweight='bold')
-plt.xlabel('Driving Performance (%)')
-plt.ylabel('Frequency')
+# Plot Weighted NASA TLX Score vs. Time Delays
+grouped_weighted_data = data.groupby('Delays')['Weighted NASA TLX Score'].mean().reset_index()
+plot_with_regression(
+    x='Delays', y='Weighted NASA TLX Score', data=grouped_weighted_data,
+    color='purple', xlabel='Time Delay (ms)', ylabel='Weighted NASA TLX Score',
+    title='Weighted NASA TLX Score vs. Time Delays', weights=weights
+)
 
-plt.subplot(1, 2, 2)
-sns.histplot(data['Mental Demand'], kde=True, color='orange', bins=20)
-plt.title('Distribution of Mental Demand', fontsize=16, fontweight='bold')
-plt.xlabel('Mental Demand Score')
-plt.ylabel('Frequency')
+# Fit regression models to estimate critical delay
+def find_critical_delay(x, y):
+    model = LinearRegression()
+    model.fit(x.reshape(-1, 1), y)
+    predictions = model.predict(x.reshape(-1, 1))
+    residuals = y - predictions
+    critical_delay = x[np.argmin(residuals)]  # Delay with the highest residual (performance drop)
+    return critical_delay
 
+delays = data['Delays'].values
+overall_performance = data['Overall Performance'].values
+critical_delay = find_critical_delay(delays, overall_performance)
+
+# Plot performance metrics with critical delay threshold
+plt.figure(figsize=(14, 8))
+
+# Plot Driving Performance vs. Time Delays
+sns.lineplot(x='Delays', y='Driving Performance', data=data, color='blue', label='Driving Performance', linewidth=2.5)
+sns.scatterplot(x='Delays', y='Driving Performance', data=data, color='blue', s=100, edgecolor='black')
+
+# Plot Maze Score vs. Time Delays
+sns.lineplot(x='Delays', y='Maze score', data=data, color='orange', label='Maze Score', linewidth=2.5)
+sns.scatterplot(x='Delays', y='Maze score', data=data, color='orange', s=100, edgecolor='black')
+
+# Plot Overall Performance vs. Time Delays
+sns.lineplot(x='Delays', y='Overall Performance', data=data, color='green', label='Overall Performance', linewidth=2.5)
+sns.scatterplot(x='Delays', y='Overall Performance', data=data, color='green', s=100, edgecolor='black')
+
+# Plot NASA TLX Score vs. Time Delays
+sns.lineplot(x='Delays', y='Overall Score', data=data, color='red', label='NASA TLX Score', linewidth=2.5)
+sns.scatterplot(x='Delays', y='Overall Score', data=data, color='red', s=100, edgecolor='black')
+
+# Add critical delay line
+plt.axvline(x=critical_delay, color='purple', linestyle='--', linewidth=2, label=f'Estimated Critical Delay ({int(critical_delay)} ms)')
+
+plt.title('Performance Metrics vs. Time Delays with Critical Delay Threshold', fontsize=20, fontweight='bold')
+plt.xlabel('Time Delay (ms)', fontsize=16)
+plt.ylabel('Performance (%)', fontsize=16)
+plt.ylim(0, 100)
+plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+plt.legend(title='Metrics', fontsize=12, title_fontsize=14)
+plt.gca().patch.set_facecolor('#f7f7f7')
 plt.tight_layout()
 plt.show()
-
