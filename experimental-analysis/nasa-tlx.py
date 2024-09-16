@@ -112,15 +112,15 @@ def plot_data():
             overall_score = [float(row[7]) for row in data]
 
             # Calculate statistics
-            subscales = [mental_demand, physical_demand, temporal_demand, performance, effort, frustration]
-            subscale_names = ["Mental Demand", "Physical Demand", "Temporal Demand", "Performance", "Effort", "Frustration"]
+            subscales = [mental_demand, physical_demand, temporal_demand, performance, effort, frustration, overall_score]
+            subscale_names = ["Mental Demand", "Physical Demand", "Temporal Demand", "Performance", "Effort", "Frustration", "Overall Score"]
 
             mean_values = [np.mean(subscale) for subscale in subscales]
             std_dev_values = [np.std(subscale) for subscale in subscales]
 
             # Separate window for subscale plots with trend lines
             plt.figure(figsize=(10, 6))
-            for i, subscale in enumerate(subscales):
+            for i, subscale in enumerate(subscales[:-1]):  # Exclude the overall score from individual subscale plots
                 plt.plot(participants, subscale, label=subscale_names[i], marker='o')
                 z = np.polyfit(participants, subscale, 1)
                 p = np.poly1d(z)
@@ -149,7 +149,7 @@ def plot_data():
 
             # Separate window for histogram of subscales
             plt.figure(figsize=(10, 6))
-            for i, subscale in enumerate(subscales):
+            for i, subscale in enumerate(subscales[:-1]):  # Exclude overall score from subscale histograms
                 plt.hist(subscale, alpha=0.5, bins=10, label=subscale_names[i])
             plt.title("Histogram of NASA-TLX Subscales", fontsize=14)
             plt.xlabel("Score (0-100)", fontsize=12)
@@ -159,10 +159,10 @@ def plot_data():
             plt.tight_layout(pad=2.0)
             plt.show()
 
-            # Separate window for box and whiskers plot
+            # Separate window for box and whiskers plot, now including the overall score
             plt.figure(figsize=(10, 6))
             plt.boxplot(subscales, labels=subscale_names)
-            plt.title("Box and Whiskers Plot of NASA-TLX Subscales", fontsize=14)
+            plt.title("Box and Whiskers Plot of NASA-TLX Subscales and Overall Score", fontsize=14)
             plt.ylabel("Score (0-100)", fontsize=12)
             plt.xticks(rotation=15, fontsize=10)
             plt.grid(True)
@@ -172,7 +172,7 @@ def plot_data():
             # Separate window for normal distribution plots
             plt.figure(figsize=(10, 6))
             x = np.linspace(0, 100, 1000)
-            for i, subscale in enumerate(subscales):
+            for i, subscale in enumerate(subscales[:-1]):  # Exclude overall score from normal distribution plot
                 mu, std = stats.norm.fit(subscale)
                 p = stats.norm.pdf(x, mu, std)
                 plt.plot(x, p, label=f'{subscale_names[i]} (mean={mu:.2f}, std={std:.2f})')
@@ -184,15 +184,17 @@ def plot_data():
             plt.tight_layout(pad=2.0)
             plt.show()
 
-
             # Display mean and standard deviation in a message box
             stats_message = "Subscale Statistics:\n"
             for i, name in enumerate(subscale_names):
                 stats_message += f"{name}: Mean = {mean_values[i]:.2f}, Std Dev = {std_dev_values[i]:.2f}\n"
             messagebox.showinfo("Statistics", stats_message)
+            print(stats_message)
+            
 
     else:
         messagebox.showerror("Error", "CSV file does not exist. Please save some data first.")
+
 
 
 

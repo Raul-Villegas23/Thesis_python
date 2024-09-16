@@ -4,11 +4,19 @@ import seaborn as sns
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import PolynomialFeatures
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 from mpl_toolkits.mplot3d import Axes3D
 from math import pi
 from scipy.interpolate import griddata
 import statsmodels.api as sm 
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from sklearn.linear_model import Ridge, Lasso
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+from statsmodels.regression.mixed_linear_model import MixedLM
+from sklearn.linear_model import RidgeCV, LassoCV
+from sklearn.model_selection import cross_val_score
+
 
 # Load and preprocess data
 def load_and_preprocess_data(csv_file):
@@ -56,6 +64,7 @@ def calculate_weighted_scores(data, weights):
         data[f'Weighted {dimension}'] = data[dimension] * weight
     data['Weighted NASA TLX Score'] = data[[f'Weighted {dim}' for dim in weights.keys()]].sum(axis=1)
     return data
+
 # Plot 3D surface
 def plot_3d_surface(data):
     fig = plt.figure(figsize=(12, 10))
@@ -108,11 +117,11 @@ def calculate_and_plot_learning_effect(data):
     plt.figure(figsize=(14, 8))
 
     # Plot the performance metrics with trendlines
-    sns.lineplot(x='Trial', y='Driving Performance', data=mean_performance, marker='o', color='blue', label='Driving Performance', linewidth=2.5)
-    sns.regplot(x='Trial', y='Driving Performance', data=mean_performance, scatter=False, color='blue', line_kws={"linestyle": "--", "linewidth": 2})
+    # sns.lineplot(x='Trial', y='Driving Performance', data=mean_performance, marker='o', color='blue', label='Driving Performance', linewidth=2.5)
+    # sns.regplot(x='Trial', y='Driving Performance', data=mean_performance, scatter=False, color='blue', line_kws={"linestyle": "--", "linewidth": 2})
 
-    sns.lineplot(x='Trial', y='Maze Score (%)', data=mean_performance, marker='o', color='orange', label='Maze Score', linewidth=2.5)
-    sns.regplot(x='Trial', y='Maze Score (%)', data=mean_performance, scatter=False, color='orange', line_kws={"linestyle": "--", "linewidth": 2})
+    # sns.lineplot(x='Trial', y='Maze Score (%)', data=mean_performance, marker='o', color='orange', label='Maze Score', linewidth=2.5)
+    # sns.regplot(x='Trial', y='Maze Score (%)', data=mean_performance, scatter=False, color='orange', line_kws={"linestyle": "--", "linewidth": 2})
 
     sns.lineplot(x='Trial', y='Overall Performance', data=mean_performance, marker='o', color='green', label='Overall Performance', linewidth=2.5)
     sns.regplot(x='Trial', y='Overall Performance', data=mean_performance, scatter=False, color='green', line_kws={"linestyle": "--", "linewidth": 2})
@@ -122,8 +131,8 @@ def calculate_and_plot_learning_effect(data):
     sns.regplot(x='Trial', y='Weighted NASA TLX Score', data=mean_performance, scatter=False, color='purple', line_kws={"linestyle": "--", "linewidth": 2})
 
     # Confidence intervals
-    sns.lineplot(x='Trial', y='Driving Performance', data=data, estimator='mean', ci='sd', color='blue', alpha=0.3)
-    sns.lineplot(x='Trial', y='Maze Score (%)', data=data, estimator='mean', ci='sd', color='orange', alpha=0.3)
+    # sns.lineplot(x='Trial', y='Driving Performance', data=data, estimator='mean', ci='sd', color='blue', alpha=0.3)
+    # sns.lineplot(x='Trial', y='Maze Score (%)', data=data, estimator='mean', ci='sd', color='orange', alpha=0.3)
     sns.lineplot(x='Trial', y='Overall Performance', data=data, estimator='mean', ci='sd', color='green', alpha=0.3)
     sns.lineplot(x='Trial', y='Weighted NASA TLX Score', data=data, estimator='mean', ci='sd', color='purple', alpha=0.3)
 
@@ -415,7 +424,50 @@ def plot_all_metrics_vs_delays(data):
     plt.tight_layout()
     plt.show()
 
+def plot_all_metrics_separately_boxplot(data):
+    # Ensure the 'Trial' column exists; create it if not
+    if 'Trial' not in data.columns:
+        data = data.sort_values(by=['Participant Number'])  # Sort by participant number first
+        data['Trial'] = data.groupby('name').cumcount() + 1  # Add trial numbers for each participant
+
+    metrics = ["Driving Performance", "Maze Score (%)", "Weighted NASA TLX Score"]
+
+    plt.figure(figsize=(14, 12))
+    for i, metric in enumerate(metrics):
+        plt.subplot(3, 1, i + 1)
+        sns.boxplot(x='Trial', y=metric, data=data)  # Removed the hue argument for simplicity
+        plt.title(f'{metric} Distribution Across Trials', fontsize=16, fontweight='bold')
+        plt.xlabel('Trial Number', fontsize=12)
+        plt.ylabel(f'{metric}', fontsize=12)
+        plt.ylim(0, 100)  # Assuming percentage-based scaling for each metric
+        plt.grid(True, linestyle='--', linewidth=0.5)
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_all_metrics_vs_delays_lineplot(data):
+    metrics = ["Driving Performance", "Maze Score (%)", "Weighted NASA TLX Score"]
+
+    plt.figure(figsize=(14, 12))  # Adjust size as needed
+
+    for i, metric in enumerate(metrics):
+        plt.subplot(3, 1, i + 1)  # 3 rows, 1 column layout
+        sns.lineplot(x='Delays', y=metric, hue='name', data=data, errorbar='sd', marker='o')  # Updated to use errorbar='sd'
+        plt.title(f'{metric} Over Delays (Line Plot)', fontsize=16, fontweight='bold')
+        plt.xlabel('Delays (ms)', fontsize=12)
+        plt.ylabel(f'{metric}', fontsize=12)
+        plt.ylim(0, 100)  # Assuming percentage-based scaling
+        plt.grid(True, linestyle='--', linewidth=0.5)
+
+    plt.tight_layout()
+    plt.show()
+
 def statistical_analysis(data):
+    """
+    Perform statistical analysis on the provided data including encoding categorical variables,
+    fitting regression models, and plotting results.
+    """
+
     # Ensure the correct column names are used
     print("Available columns: ", data.columns)
 
@@ -426,85 +478,324 @@ def statistical_analysis(data):
     data_encoded = pd.get_dummies(data, columns=['profession', 'gaming experience'], drop_first=True)
 
     # Ensure all numeric columns are properly cast as float/int
-    data_encoded['Delays'] = pd.to_numeric(data_encoded['Delays'], errors='coerce')
-    data_encoded['age'] = pd.to_numeric(data_encoded['age'], errors='coerce')
-    data_encoded['Driving Performance'] = pd.to_numeric(data_encoded['Driving Performance'], errors='coerce')
-    data_encoded['Maze Score (%)'] = pd.to_numeric(data_encoded['Maze Score (%)'], errors='coerce')
-    data_encoded['Weighted NASA TLX Score'] = pd.to_numeric(data_encoded['Weighted NASA TLX Score'], errors='coerce')
+    numeric_columns = ['Delays', 'age', 'Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    for col in numeric_columns:
+        data_encoded[col] = pd.to_numeric(data_encoded[col], errors='coerce')
 
     # Convert boolean columns to integers (0 or 1)
     boolean_columns = data_encoded.select_dtypes(include=['bool']).columns
     data_encoded[boolean_columns] = data_encoded[boolean_columns].astype(int)
 
     # Drop rows with missing or NaN values
-    data_encoded = data_encoded.dropna(subset=['Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score', 'Delays', 'age'])
+    data_encoded = data_encoded.dropna(subset=numeric_columns)
 
-    # Define independent variables (Delays, age, and encoded categorical variables)
-    X = data_encoded[['Delays', 'age', 'gaming experience_yes', 'profession_phd student', 'profession_phd researcher', 'profession_software engineer']]
+    # Define independent variables
+    gaming_experience_columns = [col for col in data_encoded.columns if 'gaming experience_' in col]
+    X = data_encoded[['Delays', 'age'] + gaming_experience_columns]
     X = sm.add_constant(X)  # Add constant for intercept
 
-    # Open a file to save the regression results
-    with open("regression_results.txt", "w") as f:
+    # Define dependent variables
+    try:
+        with open("regression_results.txt", "w") as f:
+            for outcome in ['Driving Performance', 'Maze Score (%)']:
+                y = np.asarray(data_encoded[outcome])
+                model = sm.OLS(y, X).fit()
+                f.write(f"=== Regression Results: {outcome} ===\n")
+                f.write(str(model.summary()))
+                f.write("\n\n")
+                
+                # Plot
+                plt.figure(figsize=(10, 6))
+                sns.regplot(x=data_encoded['Delays'], y=data_encoded[outcome], scatter_kws={'s': 50}, line_kws={"color": "red", "alpha": 0.7})
+                plt.title(f'{outcome} vs. Delays', fontsize=16)
+                plt.xlabel('Delays (ms)', fontsize=14)
+                plt.ylabel(outcome, fontsize=14)
+                plt.grid(True)
+                plt.tight_layout()
+                plt.savefig(f'figures/{outcome.replace(" ", "_")}_vs_Delays.png')
+                # plt.show()
+                plt.close()
 
-        # Regression model for Driving Performance
-        y = np.asarray(data_encoded['Driving Performance'])
-        model = sm.OLS(y, X).fit()
-        f.write("=== Regression Results: Driving Performance ===\n")
-        f.write(str(model.summary()))
-        f.write("\n\n")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
-        # Plot Driving Performance vs. Delays and save plot
-        plt.figure(figsize=(10, 6))
-        sns.regplot(x=data_encoded['Delays'], y=data_encoded['Driving Performance'], scatter_kws={'s': 50}, line_kws={"color": "red", "alpha": 0.7})
-        plt.title('Driving Performance vs. Delays', fontsize=16)
-        plt.xlabel('Delays (ms)', fontsize=14)
-        plt.ylabel('Driving Performance (%)', fontsize=14)
-        plt.grid(True)
-        plt.tight_layout()
-        # plt.savefig('driving_performance_vs_delays.png')  # Save plot
-        plt.show()
 
-        # Regression model for Maze Score
-        y = np.asarray(data_encoded['Maze Score (%)'])
-        model = sm.OLS(y, X).fit()
-        f.write("=== Regression Results: Maze Score ===\n")
-        f.write(str(model.summary()))
-        f.write("\n\n")
 
-        # Plot Maze Score vs. Delays and save plot
-        plt.figure(figsize=(10, 6))
-        sns.regplot(x=data_encoded['Delays'], y=data_encoded['Maze Score (%)'], scatter_kws={'s': 50}, line_kws={"color": "blue", "alpha": 0.7})
-        plt.title('Maze Score vs. Delays', fontsize=16)
-        plt.xlabel('Delays (ms)', fontsize=14)
-        plt.ylabel('Maze Score (%)', fontsize=14)
-        plt.grid(True)
-        plt.tight_layout()
-        # plt.savefig('maze_score_vs_delays.png')  # Save plot
-        plt.show()
+def comprehensive_regression_analysis(data):
+    # Preprocessing
+    data.columns = data.columns.str.strip()
+    
+    # One-hot encoding for categorical variables
+    data_encoded = pd.get_dummies(data, columns=['profession', 'gaming experience'], drop_first=True)
+    
+    # Convert selected columns to numeric
+    numeric_cols = ['Delays', 'age', 'Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    for col in numeric_cols:
+        data_encoded[col] = pd.to_numeric(data_encoded[col], errors='coerce')
+    
+    # Convert boolean columns to integers
+    boolean_columns = data_encoded.select_dtypes(include=['bool']).columns
+    data_encoded[boolean_columns] = data_encoded[boolean_columns].astype(int)
+    
+    # Drop rows with missing values in key columns
+    data_encoded = data_encoded.dropna(subset=['Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score', 'Delays', 'age'])
+    
+    # Standardize numeric features to improve condition number and reduce multicollinearity issues
+    data_encoded[['Delays', 'age']] = (data_encoded[['Delays', 'age']] - data_encoded[['Delays', 'age']].mean()) / data_encoded[['Delays', 'age']].std()
 
-        # Regression model for Weighted NASA TLX Score
-        y = np.asarray(data_encoded['Weighted NASA TLX Score'])
-        model = sm.OLS(y, X).fit()
-        f.write("=== Regression Results: Weighted NASA TLX Score ===\n")
-        f.write(str(model.summary()))
-        f.write("\n\n")
+    # Define independent variables
+    X = data_encoded[['Delays', 'age', 'gaming experience_yes']]
+    X = sm.add_constant(X)  # Add a constant term for the intercept
+    
+    # Define dependent variable
+    y = data_encoded['Driving Performance']
+    
+    # OLS Model
+    model_ols = sm.OLS(y, X).fit()
+    print("=== OLS Regression Results ===")
+    print(model_ols.summary())
+    
+    # VIF Calculation to detect multicollinearity
+    vif_df = calculate_vif(X)
+    print("\n=== Variance Inflation Factors ===")
+    print(vif_df)
+    
+    # Residual Diagnostics
+    residuals = model_ols.resid
+    plt.figure(figsize=(12, 5))
+    
+    # Residuals vs Fitted Values plot
+    plt.subplot(1, 2, 1)
+    sns.scatterplot(x=model_ols.fittedvalues, y=residuals)
+    plt.axhline(0, color='red', linestyle='--')
+    plt.xlabel('Fitted Values')
+    plt.ylabel('Residuals')
+    plt.title('Residuals vs. Fitted Values')
+    
+    # Residuals distribution plot
+    plt.subplot(1, 2, 2)
+    sns.histplot(residuals, kde=True, bins=15, color='purple')
+    plt.title('Residuals Distribution')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # If multicollinearity detected (VIF > 5), consider removing variables
+    if vif_df['VIF'].max() > 5:
+        print("Warning: Multicollinearity detected. Consider removing highly collinear variables.")
+        # You can optionally remove highly collinear variables here and refit the model
 
-        # Plot Weighted NASA TLX Score vs. Delays and save plot
-        plt.figure(figsize=(10, 6))
-        sns.regplot(x=data_encoded['Delays'], y=data_encoded['Weighted NASA TLX Score'], scatter_kws={'s': 50}, line_kws={"color": "green", "alpha": 0.7})
-        plt.title('Weighted NASA TLX Score vs. Delays', fontsize=16)
-        plt.xlabel('Delays (ms)', fontsize=14)
-        plt.ylabel('Weighted NASA TLX Score', fontsize=14)
-        plt.grid(True)
-        plt.tight_layout()
-        # plt.savefig('nasa_tlx_vs_delays.png')  # Save plot
-        plt.show()
+    # Fit Robust Linear Model (RLM) to handle outliers
+    model_rlm = sm.RLM(y, X, M=sm.robust.norms.HuberT()).fit()
+    print("\n=== Robust Linear Model: Driving Performance ===")
+    print(model_rlm.summary())
+    
+    # Fit Generalized Least Squares (GLS) to handle heteroscedasticity
+    # Assume variance inversely proportional to squared Delays (you can change this assumption)
+    weights = 1 / (data_encoded['Delays'] ** 2)
+    model_gls = sm.GLS(y, X, sigma=weights).fit()
+    print("\n=== GLS Regression Results: Driving Performance ===")
+    print(model_gls.summary())
 
+# Helper function for VIF
+def calculate_vif(X):
+    # Drop the constant to avoid infinite VIF for constant term
+    X_no_const = X.drop('const', axis=1)
+    vif_data = pd.DataFrame()
+    vif_data["feature"] = X_no_const.columns
+    vif_data["VIF"] = [variance_inflation_factor(X_no_const.values, i) 
+                       for i in range(X_no_const.shape[1])]
+    return vif_data
+
+
+# Regularization analysis (Ridge and Lasso Regression)
+def regularization_analysis(data):
+    # Ensure the correct column names are used
+    print("Available columns before encoding: ", data.columns)
+
+    # Convert categorical variables (profession and gaming experience) into one-hot encoded columns
+    data_encoded = pd.get_dummies(data, columns=['profession', 'gaming experience'], drop_first=True)
+
+    # Ensure the correct column names after encoding
+    print("Available columns after encoding: ", data_encoded.columns)
+
+    # Ensure that the data is numeric and contains no NaN values
+    numeric_columns = ['Delays', 'age', 'Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    data_encoded = data_encoded.dropna(subset=numeric_columns)
+    
+    # Now, ensure the encoded columns exist
+    # Check if the expected columns are present
+    expected_columns = ['Delays', 'age', 'gaming experience_yes', 'profession_phd student', 'profession_software engineer']
+    missing_columns = [col for col in expected_columns if col not in data_encoded.columns]
+    
+    if missing_columns:
+        print(f"Missing columns: {missing_columns}")
+        return
+    
+    # Define independent variables (Delays, age, profession, gaming experience)
+    X = data_encoded[['Delays', 'age', 'gaming experience_yes', 'profession_phd student', 'profession_software engineer']]
+    y = data_encoded['Driving Performance']
+
+    # Standardize features
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    # Split the data into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+    # Apply Lasso regression
+    lasso = LassoCV(cv=5)
+    lasso.fit(X_train, y_train)
+
+    print(f"Lasso best alpha: {lasso.alpha_}")
+    print(f"Lasso coefficients: {lasso.coef_}")
+
+    # Plot Lasso coefficients
+    plt.figure(figsize=(10, 6))
+    plt.barh(X.columns, lasso.coef_, color='purple')
+    plt.title("Lasso Regression Coefficients")
+    plt.xlabel("Coefficient Value")
+    plt.ylabel("Feature")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # Apply Ridge regression
+    ridge = RidgeCV(alphas=np.logspace(-6, 6, 13), cv=5)
+    ridge.fit(X_train, y_train)
+
+    print(f"Ridge best alpha: {ridge.alpha_}")
+    print(f"Ridge coefficients: {ridge.coef_}")
+
+    # Plot Ridge coefficients
+    plt.figure(figsize=(10, 6))
+    plt.barh(X.columns, ridge.coef_, color='blue')
+    plt.title("Ridge Regression Coefficients")
+    plt.xlabel("Coefficient Value")
+    plt.ylabel("Feature")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+def output_summary_statistics(data):
+    # Specify the columns for which we want to calculate mean and standard deviation
+    metrics = ['Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    
+    # Calculate mean and standard deviation for each metric
+    summary_stats = data[metrics].agg(['mean', 'std']).T
+    
+    # Rename columns for clarity
+    summary_stats.columns = ['Mean', 'Standard Deviation']
+    
+    # Display the summary statistics table
+    print("Summary Statistics for Driving Performance, Maze Score, and NASA TLX Score:")
+    print(summary_stats)
+    
+    return summary_stats
+
+def calculate_and_plot_statistics(data):
+    # Calculate means and standard deviations
+    metrics = ['Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    
+    # Individual NASA TLX dimensions
+    nasa_dimensions = ["Mental Demand", "Physical Demand", "Temporal Demand", "Performance", "Effort", "Frustration"]
+    
+    all_metrics = metrics + nasa_dimensions
+    
+    # Initialize an empty list to store stats
+    stats_list = []
+    
+    for metric in all_metrics:
+        mean_val = data[metric].mean()
+        std_val = data[metric].std()
+        stats_list.append({'Metric': metric, 'Mean': round(mean_val, 2), 'Standard Deviation': round(std_val, 2)})
+    
+    stats_df = pd.DataFrame(stats_list)
+    
+    # Now, plot the table
+    fig, ax = plt.subplots(figsize=(10, len(all_metrics)*0.5))
+    ax.axis('tight')
+    ax.axis('off')
+    table = ax.table(cellText=stats_df.values, colLabels=stats_df.columns, loc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(12)
+    table.scale(1, 1.5)
+    plt.title('Means and Standard Deviations of Metrics', fontsize=16)
+    plt.show()
+
+def calculate_and_plot_statistics_by_delay(data):
+    # Define the metrics and NASA TLX dimensions that will be used for aggregation
+    metrics = ['Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    
+    # Individual NASA TLX dimensions
+    nasa_dimensions = ["Mental Demand", "Physical Demand", "Temporal Demand", "Performance", "Effort", "Frustration"]
+    
+    all_metrics = metrics + nasa_dimensions
+
+    # Ensure we only select the numeric columns for grouping and aggregation
+    numeric_data = data[['Delays'] + all_metrics].select_dtypes(include=['float64', 'int64'])
+
+    # Initialize an empty list to store stats
+    stats_list = []
+
+    # Group by 'Delays' and calculate mean and std for each metric
+    grouped_data = numeric_data.groupby('Delays').agg(['mean', 'std']).reset_index()
+
+    # Flatten the column names
+    grouped_data.columns = ['_'.join(col).strip() if col[1] != '' else col[0] for col in grouped_data.columns.values]
+
+    # Convert grouped_data to a more readable format
+    for delay in grouped_data['Delays']:
+        for metric in all_metrics:
+            mean_col = f'{metric}_mean'
+            std_col = f'{metric}_std'
+            mean_val = grouped_data.loc[grouped_data['Delays'] == delay, mean_col].values[0]
+            std_val = grouped_data.loc[grouped_data['Delays'] == delay, std_col].values[0]
+            stats_list.append({
+                'Delay (ms)': delay,
+                'Metric': metric,
+                'Mean': f"{mean_val:.2f}",
+                'Standard Deviation': f"{std_val:.2f}"
+            })
+
+    # Convert to DataFrame for easier plotting
+    stats_df = pd.DataFrame(stats_list)
+
+    # Styling the table for scientific paper quality
+    fig, ax = plt.subplots(figsize=(10, len(stats_list)*0.2))
+    ax.axis('tight')
+    ax.axis('off')
+
+    # Create the table with a more professional style
+    table = ax.table(cellText=stats_df.values, colLabels=stats_df.columns, loc='center', cellLoc='center')
+
+    # Adjust font size and scale for paper readability
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.2, 1.5)
+
+    # Set bold headers
+    for key, cell in table.get_celld().items():
+        if key[0] == 0:  # Header row
+            cell.set_text_props(weight='bold')
+
+    # Customize table lines for better appearance in a paper
+    table.auto_set_column_width(col=list(range(len(stats_df.columns))))
+    for i in range(len(stats_list) + 1):
+        for j in range(len(stats_df.columns)):
+            cell = table[(i, j)]
+            cell.set_edgecolor('black')
+            cell.set_linewidth(1)
+
+    plt.title('Means and Standard Deviations of Metrics by Time Delay', fontsize=14, pad=20)
+    plt.show()
+
+    return stats_df
 
 
 # Main script execution
 if __name__ == "__main__":
-    csv_file = 'merged_nasa_tlx_with_maze_results.csv'
+    csv_file = 'updated.csv'
     data = load_and_preprocess_data(csv_file)
 
     # Define weights for NASA TLX dimensions
@@ -528,33 +819,53 @@ if __name__ == "__main__":
         'Maze Score (%)': 'mean',
         'Overall Performance': 'mean'
     }).reset_index()
-    # plot_with_regression('Delays', 'Maze Score (%)', grouped_data, 'orange', 'Time Delay (ms)', 'Maze Score (%)', 'Maze Score vs. Time Delays')
-    # plot_with_regression('Delays', 'Driving Performance', grouped_data, 'blue', 'Time Delay (ms)', 'Driving Performance (%)', 'Driving Performance vs. Time Delays')
-    # plot_with_regression('Delays', 'Overall Performance', grouped_data, 'green', 'Time Delay (ms)', 'Overall Performance (%)', 'Overall Performance (Driving + Maze) vs. Time Delays')
+    
+    ## Plotting the data with regression lines
+    plot_with_regression('Delays', 'Maze Score (%)', grouped_data, 'orange', 'Time Delay (ms)', 'Maze Score (%)', 'Maze Score vs. Time Delays')
+    plot_with_regression('Delays', 'Driving Performance', grouped_data, 'blue', 'Time Delay (ms)', 'Driving Performance (%)', 'Driving Performance vs. Time Delays')
+    plot_with_regression('Delays', 'Overall Performance', grouped_data, 'green', 'Time Delay (ms)', 'Overall Performance (%)', 'Overall Performance (Driving + Maze) vs. Time Delays')
 
-    # # Plot NASA TLX dimension comparisons
-    # plot_trend_analysis(data)
-    # plot_3d_surface(data)
-    # plot_nasa_tlx_comparison(data)
-    # plot_nasa_tlx_area(data)
-    # plot_correlation_heatmap(data)
-    # plot_boxplots(data)
+    # Plot NASA TLX dimension comparisons
+    plot_trend_analysis(data)
+    plot_3d_surface(data)
 
-    # # Calculate and plot learning effect
-    # calculate_and_plot_learning_effect(data)
+    plot_nasa_tlx_comparison(data)
+    plot_nasa_tlx_area(data)
+    plot_correlation_heatmap(data)
+    plot_boxplots(data)
+    calculate_and_plot_learning_effect(data)
 
-    # # # Radar charts for professions
-    # for profession in ['phd student', 'software engineer', 'student', 'master student']:
-    #     plot_radar_chart(data, profession)
 
-    # # Plot performance with critical delay
-    # plot_with_critical_delay(data)
+    # Radar charts for professions
+    for profession in ['phd student', 'software engineer', 'student', 'master student']:
+        plot_radar_chart(data, profession)
 
-    # # Plot individual participant performance
-    # plot_all_metrics_separately(data)
+    regularization_analysis(data)
 
-    # # Plot individual participant performance vs. delays
-    # plot_all_metrics_vs_delays(data)
+    # Plot performance with critical delay
+    plot_with_critical_delay(data)
+
+    # Plot individual participant performance
+    plot_all_metrics_separately(data)
+    plot_all_metrics_separately_boxplot(data)
+
+    # Plot individual participant performance vs. delays
+    plot_all_metrics_vs_delays(data)
+    plot_all_metrics_vs_delays_lineplot(data)
 
     # Call the function with your dataset
     statistical_analysis(data)
+
+    #Comprehensive regression analysis
+    comprehensive_regression_analysis(data)
+
+    #Output summary statistics
+    summary_stats = output_summary_statistics(data)
+
+    #Calculate and plot statistics
+    calculate_and_plot_statistics(data)
+
+    #Calculate and plot statistics by delay
+    # stats = calculate_and_plot_statistics_by_delay(data)
+
+
