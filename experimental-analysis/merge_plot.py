@@ -1,5 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy import stats
 import seaborn as sns
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -12,27 +13,39 @@ import statsmodels.api as sm
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from sklearn.linear_model import Ridge, Lasso
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
 from statsmodels.regression.mixed_linear_model import MixedLM
 from sklearn.linear_model import RidgeCV, LassoCV
 from sklearn.model_selection import cross_val_score
+from statsmodels.stats.anova import anova_lm
+from statsmodels.formula.api import ols
+from statsmodels.graphics.gofplots import qqplot
+from statsmodels.stats.oneway import anova_oneway
 
 
 # Load and preprocess data
 def load_and_preprocess_data(csv_file):
     data = pd.read_csv(csv_file)
     data.rename(columns={
-        'Maze score': 'Maze Score (%)',
-        'Time Scores': 'Time Scores (ms)'
+        'Maze score': 'Maze_Score',
+        'Time Scores': 'Time_Scores',
+        'Driving Performance': 'Driving_Performance',
+        'Overall Performance': 'Overall_Performance',
+        'Weighted NASA TLX Score': 'Weighted_NASA_TLX_Score'
     }, inplace=True)
-    data['Maze Score (%)'] = data['Maze Score (%)'].str.rstrip('%').astype(float)
+    data['Maze_Score'] = data['Maze_Score'].str.rstrip('%').astype(float)
     return data
 
 # Calculate performance based on time scores and overall performance
 def calculate_performance_metrics(data):
-    min_time, max_time = data['Time Scores (ms)'].min(), data['Time Scores (ms)'].max()
-    data['Driving Performance'] = 100 * (max_time - data['Time Scores (ms)']) / (max_time - min_time)
-    data['Overall Performance'] = (data['Driving Performance'] + data['Maze Score (%)']) / 2
+    # Make sure 'Time_Scores' is used after renaming
+    min_time, max_time = data['Time_Scores'].min(), data['Time_Scores'].max()
+
+    # Calculate Driving Performance using the renamed 'Time_Scores' column
+    data['Driving_Performance'] = 100 * (max_time - data['Time_Scores']) / (max_time - min_time)
+
+    # Calculate Overall Performance using the renamed 'Maze_Score'
+    data['Overall_Performance'] = (data['Driving_Performance'] + data['Maze_Score']) / 2
+    
     return data
 
 # Plot with regression line and optional weights
@@ -61,42 +74,17 @@ def plot_with_regression(x, y, data, color, xlabel, ylabel, title, weights=None)
 # Calculate weighted NASA TLX scores
 def calculate_weighted_scores(data, weights):
     for dimension, weight in weights.items():
-        data[f'Weighted {dimension}'] = data[dimension] * weight
-    data['Weighted NASA TLX Score'] = data[[f'Weighted {dim}' for dim in weights.keys()]].sum(axis=1)
+        if dimension in data.columns:
+            data[f'Weighted_{dimension}'] = data[dimension] * weight
+        else:
+            raise KeyError(f"Column '{dimension}' not found in data.")
+    
+    # Sum up the weighted scores to create the final NASA TLX score
+    weighted_columns = [f'Weighted_{dim}' for dim in weights.keys()]
+    data['Weighted_NASA_TLX_Score'] = data[weighted_columns].sum(axis=1)
+    
     return data
 
-# Plot 3D surface
-def plot_3d_surface(data):
-    fig = plt.figure(figsize=(12, 10))
-    ax = fig.add_subplot(111, projection='3d')
-    
-    # Create grid data for surface plot
-    X = data['Delays'].values
-    Y = data['Driving Performance'].values
-    Z = data['Maze Score (%)'].values
-
-    # Create a meshgrid for X and Y
-    xi = np.linspace(X.min(), X.max(), 100)
-    yi = np.linspace(Y.min(), Y.max(), 100)
-    X_grid, Y_grid = np.meshgrid(xi, yi)
-    
-    # Interpolate Z values onto the grid
-    Z_grid = griddata((X, Y), Z, (X_grid, Y_grid), method='cubic')
-    
-    # Plot the surface
-    surf = ax.plot_surface(X_grid, Y_grid, Z_grid, cmap='viridis', edgecolor='none', alpha=0.8)
-
-    # Customize the plot
-    ax.set_xlabel('Delays (ms)', fontsize=15, fontweight='bold', labelpad=15)
-    ax.set_ylabel('Driving Performance (%)', fontsize=15, fontweight='bold', labelpad=15)
-    ax.set_zlabel('Maze Score (%)', fontsize=15, fontweight='bold', labelpad=15)
-    ax.set_title('3D Surface Plot of Delays, Driving Performance, and Maze Score', fontsize=18, fontweight='bold', pad=20)
-
-    # Add a color bar
-    cbar = plt.colorbar(surf, pad=0.1)
-    cbar.set_label('Maze Score (%)', fontsize=13, fontweight='bold')
-    
-    plt.show()
 
 def calculate_and_plot_learning_effect(data):
     data = data.sort_values(by=['Participant Number'])
@@ -117,34 +105,42 @@ def calculate_and_plot_learning_effect(data):
     plt.figure(figsize=(14, 8))
 
     # Plot the performance metrics with trendlines
-    # sns.lineplot(x='Trial', y='Driving Performance', data=mean_performance, marker='o', color='blue', label='Driving Performance', linewidth=2.5)
-    # sns.regplot(x='Trial', y='Driving Performance', data=mean_performance, scatter=False, color='blue', line_kws={"linestyle": "--", "linewidth": 2})
+    sns.lineplot(x='Trial', y='Driving Performance', data=mean_performance, marker='o', color='blue', label='Driving Performance', linewidth=2.5)
+    sns.regplot(x='Trial', y='Driving Performance', data=mean_performance, scatter=False, color='blue', line_kws={"linestyle": "--", "linewidth": 2})
 
-    # sns.lineplot(x='Trial', y='Maze Score (%)', data=mean_performance, marker='o', color='orange', label='Maze Score', linewidth=2.5)
-    # sns.regplot(x='Trial', y='Maze Score (%)', data=mean_performance, scatter=False, color='orange', line_kws={"linestyle": "--", "linewidth": 2})
+    sns.lineplot(x='Trial', y='Maze Score (%)', data=mean_performance, marker='o', color='orange', label='Maze Score', linewidth=2.5)
+    sns.regplot(x='Trial', y='Maze Score (%)', data=mean_performance, scatter=False, color='orange', line_kws={"linestyle": "--", "linewidth": 2})
 
-    sns.lineplot(x='Trial', y='Overall Performance', data=mean_performance, marker='o', color='green', label='Overall Performance', linewidth=2.5)
-    sns.regplot(x='Trial', y='Overall Performance', data=mean_performance, scatter=False, color='green', line_kws={"linestyle": "--", "linewidth": 2})
+    # sns.lineplot(x='Trial', y='Overall Performance', data=mean_performance, marker='o', color='green', label='Overall Performance', linewidth=2.5)
+    # sns.regplot(x='Trial', y='Overall Performance', data=mean_performance, scatter=False, color='green', line_kws={"linestyle": "--", "linewidth": 2})
 
     # Plot the Weighted NASA TLX Score with trendlines
-    sns.lineplot(x='Trial', y='Weighted NASA TLX Score', data=mean_performance, marker='o', color='purple', label='Weighted NASA TLX Score', linewidth=2.5)
-    sns.regplot(x='Trial', y='Weighted NASA TLX Score', data=mean_performance, scatter=False, color='purple', line_kws={"linestyle": "--", "linewidth": 2})
+    # sns.lineplot(x='Trial', y='Weighted NASA TLX Score', data=mean_performance, marker='o', color='purple', label='Weighted NASA TLX Score', linewidth=2.5)
+    # sns.regplot(x='Trial', y='Weighted NASA TLX Score', data=mean_performance, scatter=False, color='purple', line_kws={"linestyle": "--", "linewidth": 2})
 
     # Confidence intervals
-    # sns.lineplot(x='Trial', y='Driving Performance', data=data, estimator='mean', ci='sd', color='blue', alpha=0.3)
-    # sns.lineplot(x='Trial', y='Maze Score (%)', data=data, estimator='mean', ci='sd', color='orange', alpha=0.3)
-    sns.lineplot(x='Trial', y='Overall Performance', data=data, estimator='mean', ci='sd', color='green', alpha=0.3)
-    sns.lineplot(x='Trial', y='Weighted NASA TLX Score', data=data, estimator='mean', ci='sd', color='purple', alpha=0.3)
+    sns.lineplot(x='Trial', y='Driving Performance', data=data, estimator='mean', ci='sd', color='blue', alpha=0.3)
+    sns.lineplot(x='Trial', y='Maze Score (%)', data=data, estimator='mean', ci='sd', color='orange', alpha=0.3)
+    # sns.lineplot(x='Trial', y='Overall Performance', data=data, estimator='mean', ci='sd', color='green', alpha=0.3)
+    # sns.lineplot(x='Trial', y='Weighted NASA TLX Score', data=data, estimator='mean', ci='sd', color='purple', alpha=0.3)
 
-    # Annotate the percentage change in Weighted NASA TLX Score
-    plt.text(1.5, mean_performance['Weighted NASA TLX Score'].max() + 5, 
-             f'Change in Weighted NASA TLX Score: {learning_effect_tlx:.2f}%', 
-             fontsize=14, color='purple', fontweight='bold', ha='left')
+    # # Annotate the percentage change in Weighted NASA TLX Score
+    # plt.text(1.5, mean_performance['Weighted NASA TLX Score'].max() + 5, 
+    #          f'Change in Weighted NASA TLX Score: {learning_effect_tlx:.2f}%', 
+    #          fontsize=14, color='purple', fontweight='bold', ha='left')
     
-    # Annotate the percentage change in overall performance
-    plt.text(1.5, mean_performance['Overall Performance'].max() - 10,
-                f'Change in Overall Performance: {learning_effect_performance[2]:.2f}%', 
-                fontsize=14, color='green', fontweight='bold', ha='left')
+    # # Annotate the percentage change in overall performance
+    # plt.text(1.5, mean_performance['Overall Performance'].max() - 10,
+    #             f'Change in Overall Performance: {learning_effect_performance[2]:.2f}%', 
+    #             fontsize=14, color='green', fontweight='bold', ha='left')
+    # Annotate the percentage change in driving performance
+    plt.text(1.5, mean_performance['Driving Performance'].max() - 10,
+                f'Change in Driving Performance: {learning_effect_performance[0]:.2f}%', 
+                fontsize=14, color='blue', fontweight='bold', ha='left')
+    # Annotate the percentage change in maze score
+    plt.text(1.5, mean_performance['Maze Score (%)'].max() - 10,
+                f'Change in Maze Score: {learning_effect_performance[1]:.2f}%', 
+                fontsize=14, color='orange', fontweight='bold', ha='left')
     
 
     plt.title('Learning Effect Across Trials', fontsize=22, fontweight='bold')
@@ -446,21 +442,42 @@ def plot_all_metrics_separately_boxplot(data):
     plt.show()
 
 def plot_all_metrics_vs_delays_lineplot(data):
-    metrics = ["Driving Performance", "Maze Score (%)", "Weighted NASA TLX Score"]
+    participants = data['name'].unique()
 
-    plt.figure(figsize=(14, 12))  # Adjust size as needed
+    # Define a color palette for each participant
+    palette = sns.color_palette("husl", len(participants))
 
-    for i, metric in enumerate(metrics):
-        plt.subplot(3, 1, i + 1)  # 3 rows, 1 column layout
-        sns.lineplot(x='Delays', y=metric, hue='name', data=data, errorbar='sd', marker='o')  # Updated to use errorbar='sd'
-        plt.title(f'{metric} Over Delays (Line Plot)', fontsize=16, fontweight='bold')
-        plt.xlabel('Delays (ms)', fontsize=12)
-        plt.ylabel(f'{metric}', fontsize=12)
-        plt.ylim(0, 100)  # Assuming percentage-based scaling
-        plt.grid(True, linestyle='--', linewidth=0.5)
+    # Create a figure with 2 subplots (subfigures) arranged vertically
+    fig, axs = plt.subplots(2, 1, figsize=(14, 12))  # 2 rows, 1 column
 
-    plt.tight_layout()
+    # 1. Plot Driving Performance for all participants vs Delays
+    for i, participant in enumerate(participants):
+        participant_data = data[data['name'] == participant]
+        sns.lineplot(x='Delays', y='Driving_Performance', data=participant_data, color=palette[i], label=f'P{participant}', linestyle='-', marker='o', ax=axs[0], linewidth= 2.5)
+    axs[0].set_title('Driving_Performance vs. Delays', fontsize=22, fontweight='bold')
+    axs[0].set_xlabel('Delays', fontsize=16)
+    axs[0].set_ylabel('Driving_Performance (%)', fontsize=16)
+    axs[0].set_ylim(0, 100)
+    axs[0].grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+    axs[0].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8, title='Participants', title_fontsize=10)
+
+    # 2. Plot Maze Score for all participants vs Delays
+    for i, participant in enumerate(participants):
+        participant_data = data[data['name'] == participant]
+        sns.lineplot(x='Delays', y='Maze_Score', data=participant_data, color=palette[i], label=f'P{participant}', linestyle='-', marker='x', ax=axs[1], linewidth= 2.5)
+    axs[1].set_title('Maze Score vs. Delays', fontsize=22, fontweight='bold')
+    axs[1].set_xlabel('Delays', fontsize=16)
+    axs[1].set_ylabel('Maze_Score', fontsize=16)
+    axs[1].set_ylim(0, 100)
+    axs[1].grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+    axs[1].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8, title='Participants', title_fontsize=10)
+
+    # Adjust layout for better spacing
+    plt.tight_layout(rect=[0, 0, 0.9, 1])  # Adjust right margin for legend
     plt.show()
+
+
+
 
 def statistical_analysis(data):
     """
@@ -513,7 +530,7 @@ def statistical_analysis(data):
                 plt.grid(True)
                 plt.tight_layout()
                 plt.savefig(f'figures/{outcome.replace(" ", "_")}_vs_Delays.png')
-                # plt.show()
+                plt.show()
                 plt.close()
 
     except Exception as e:
@@ -791,6 +808,155 @@ def calculate_and_plot_statistics_by_delay(data):
     plt.show()
 
     return stats_df
+def plot_spearman_correlation_heatmap(data):
+    """
+    This function computes and plots the Spearman correlation heatmap
+    for the selected columns in the dataset.
+    """
+    # Select the columns you want to compute the correlation for
+    dimensions = ["Mental Demand", "Physical Demand", "Temporal Demand", 
+                  "Performance", "Effort", "Frustration", 
+                  'Delays', 'Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+
+    # Compute the Spearman correlation matrix
+    spearman_corr = data[dimensions].corr(method='spearman')
+
+    # Create a heatmap to visualize the Spearman correlation
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(spearman_corr, annot=True, cmap='coolwarm', vmin=-1, vmax=1, linewidths=0.5)
+    plt.title('Spearman Correlation Heatmap of Time Delays, Performance, Maze, and NASA TLX Dimensions', fontsize=18, fontweight='bold')
+    plt.show()
+def calculate_baseline_performance(data, metric='Driving Performance'):
+    """
+    This function calculates the baseline performance for each participant based on
+    their performance at the shortest delay.
+    """
+    # Ensure the data is sorted by participant number and delays
+    data = data.sort_values(by=['Participant Number', 'Delays'])
+    
+    # Group by participant and calculate the baseline as the performance at the shortest delay
+    baseline_data = data.groupby('Participant Number').first()  # First row after sorting by delay
+    
+    # Extract the baseline performance (we can use Overall Performance or another metric)
+    baseline_performance = baseline_data[['name', metric]].reset_index()
+    
+    return baseline_performance
+
+def plot_baseline_performance(baseline_performance, y = 'Driving Performance'):
+    """
+    This function plots the baseline performance for each participant.
+    """
+    plt.figure(figsize=(12, 8))
+    
+    # Plotting the baseline performance
+    sns.barplot(x='name', y=y, data=baseline_performance, palette='plasma')
+    
+    # Adding titles and labels
+    plt.title('Baseline Performance for Each Participant', fontsize=20, fontweight='bold')
+    plt.xlabel('Participant', fontsize=16)
+    plt.ylabel('Baseline Driving performance (%)', fontsize=16)
+    
+    # Rotating x-axis labels for better visibility
+    plt.xticks(rotation=45)
+    
+    # Display plot
+    plt.tight_layout()
+    plt.show()
+
+def perform_anova(data, dependent_var, independent_var):
+    """
+    Perform one-way ANOVA to compare the means of the dependent variable across different levels of the independent variable.
+    """
+    # Use simplified column names for the ANOVA formula
+    formula = f'{dependent_var} ~ C({independent_var})'
+
+    # Fit the OLS model and perform ANOVA
+    model = ols(formula, data=data).fit()
+    anova_table = sm.stats.anova_lm(model, typ=2)
+
+    # Print the ANOVA table
+    print(f"=== ANOVA Results for {dependent_var} vs. {independent_var} ===")
+    print(anova_table)
+
+    # Check the p-value using .iloc to avoid the FutureWarning
+    p_value = anova_table['PR(>F)'].iloc[0]  # Fix: use .iloc[0] to access the first element by position
+    if p_value < 0.05:
+        print(f"\nStatistically significant difference in {dependent_var} across {independent_var} groups (p-value = {p_value:.4f}).")
+    else:
+        print(f"\nNo statistically significant difference in {dependent_var} across {independent_var} groups (p-value = {p_value:.4f}).")
+
+def check_anova_assumptions(model, data, dependent_var, independent_var):
+    """
+    Check assumptions for ANOVA: normality of residuals, homogeneity of variances.
+    """
+    # 1. Residuals from the ANOVA model
+    residuals = model.resid
+    
+    # 2. Normality of residuals (Q-Q plot and Shapiro-Wilk test)
+    plt.figure(figsize=(10, 6))
+
+    # Q-Q plot
+    plt.subplot(1, 2, 1)
+    qqplot(residuals, line='s', ax=plt.gca())
+    plt.title('Q-Q Plot of Residuals')
+
+    # Histogram of residuals
+    plt.subplot(1, 2, 2)
+    sns.histplot(residuals, kde=True, bins=10)
+    plt.title('Histogram of Residuals')
+    plt.tight_layout()
+    plt.show()
+
+    # Shapiro-Wilk test for normality
+    shapiro_test = stats.shapiro(residuals)
+    print(f"Shapiro-Wilk test for normality: W={shapiro_test.statistic}, p-value={shapiro_test.pvalue}")
+    if shapiro_test.pvalue < 0.05:
+        print("Warning: Residuals are not normally distributed (p-value < 0.05).")
+    else:
+        print("Residuals are normally distributed (p-value >= 0.05).")
+
+    # 3. Homogeneity of variances (Levene's Test and Bartlett's Test)
+    groups = [data[dependent_var][data[independent_var] == level] for level in data[independent_var].unique()]
+
+    # Levene's test
+    levene_test = stats.levene(*groups)
+    print(f"Levene's test for homogeneity of variances: W={levene_test.statistic}, p-value={levene_test.pvalue}")
+    if levene_test.pvalue < 0.05:
+        print("Warning: Variances are not equal across groups (p-value < 0.05).")
+    else:
+        print("Variances are equal across groups (p-value >= 0.05).")
+
+    # Bartlett's test (more sensitive to normality)
+    bartlett_test = stats.bartlett(*groups)
+    print(f"Bartlett's test for homogeneity of variances: W={bartlett_test.statistic}, p-value={bartlett_test.pvalue}")
+    if bartlett_test.pvalue < 0.05:
+        print("Warning: Variances are not equal across groups (p-value < 0.05).")
+    else:
+        print("Variances are equal across groups (p-value >= 0.05).")
+
+def perform_non_parametric_tests(data, dependent_var, independent_var):
+    """
+    Perform Kruskal-Wallis test and Welch's ANOVA to handle violations of normality and homogeneity.
+    """
+    # Prepare the groups for Kruskal-Wallis
+    groups = [data[dependent_var][data[independent_var] == level] for level in data[independent_var].unique()]
+
+    # 1. Kruskal-Wallis Test (Non-parametric alternative to ANOVA)
+    kruskal_test = stats.kruskal(*groups)
+    print(f"Kruskal-Wallis test for {dependent_var} vs {independent_var}: H-statistic={kruskal_test.statistic}, p-value={kruskal_test.pvalue}")
+    if kruskal_test.pvalue < 0.05:
+        print(f"Significant differences in {dependent_var} across {independent_var} groups (p-value < 0.05).")
+    else:
+        print(f"No significant differences in {dependent_var} across {independent_var} groups (p-value >= 0.05).")
+
+    # 2. Welch’s ANOVA (Robust to heterogeneity of variances)
+    welch_anova = anova_oneway(groups, use_var='unequal', welch_correction=True)
+    print(f"Welch's ANOVA for {dependent_var} vs {independent_var}: F-statistic={welch_anova.statistic}, p-value={welch_anova.pvalue}")
+    if welch_anova.pvalue < 0.05:
+        print(f"Significant differences in {dependent_var} across {independent_var} groups (p-value < 0.05).")
+    else:
+        print(f"No significant differences in {dependent_var} across {independent_var} groups (p-value >= 0.05).")
+
 
 
 # Main script execution
@@ -813,59 +979,88 @@ if __name__ == "__main__":
     # Calculate performance metrics
     data = calculate_performance_metrics(data)
 
-    # Plot metrics against time delays
+    # Perform ANOVA
+    dependent_vars = ['Driving_Performance', 'Maze_Score', 'Weighted_NASA_TLX_Score']
+    independent_var = 'Delays'
+    for var in dependent_vars:
+        # Perform ANOVA
+        model = ols(f'{var} ~ C({independent_var})', data=data).fit()
+        anova_table = sm.stats.anova_lm(model, typ=2)
+        print(f"=== ANOVA Results for {var} vs. {independent_var} ===")
+        print(anova_table)
+
+        # Check ANOVA assumptions
+        check_anova_assumptions(model, data, var, independent_var)
+    
+    for var in dependent_vars:
+        print(f"--- Non-parametric tests for {var} ---")
+        perform_non_parametric_tests(data, var, independent_var)
+
+    # Corrected column names for aggregation
     grouped_data = data.groupby('Delays').agg({
-        'Driving Performance': 'mean',
-        'Maze Score (%)': 'mean',
-        'Overall Performance': 'mean'
+        'Driving_Performance': 'mean',
+        'Maze_Score': 'mean',  # Corrected name
+        'Overall_Performance': 'mean'
     }).reset_index()
     
     ## Plotting the data with regression lines
-    plot_with_regression('Delays', 'Maze Score (%)', grouped_data, 'orange', 'Time Delay (ms)', 'Maze Score (%)', 'Maze Score vs. Time Delays')
-    plot_with_regression('Delays', 'Driving Performance', grouped_data, 'blue', 'Time Delay (ms)', 'Driving Performance (%)', 'Driving Performance vs. Time Delays')
-    plot_with_regression('Delays', 'Overall Performance', grouped_data, 'green', 'Time Delay (ms)', 'Overall Performance (%)', 'Overall Performance (Driving + Maze) vs. Time Delays')
+    # plot_with_regression('Delays', 'Maze Score (%)', grouped_data, 'orange', 'Time Delay (ms)', 'Maze Score (%)', 'Maze Score vs. Time Delays')
+    # plot_with_regression('Delays', 'Driving Performance', grouped_data, 'blue', 'Time Delay (ms)', 'Driving Performance (%)', 'Driving Performance vs. Time Delays')
+    # plot_with_regression('Delays', 'Overall Performance', grouped_data, 'green', 'Time Delay (ms)', 'Overall Performance (%)', 'Overall Performance (Driving + Maze) vs. Time Delays')
 
-    # Plot NASA TLX dimension comparisons
-    plot_trend_analysis(data)
-    plot_3d_surface(data)
+    # # Plot NASA TLX dimension comparisons
+    # plot_trend_analysis(data)
 
-    plot_nasa_tlx_comparison(data)
-    plot_nasa_tlx_area(data)
-    plot_correlation_heatmap(data)
-    plot_boxplots(data)
-    calculate_and_plot_learning_effect(data)
+    # plot_nasa_tlx_comparison(data)
+    # plot_nasa_tlx_area(data)
+    # plot_correlation_heatmap(data)
+    # plot_boxplots(data)
+    # calculate_and_plot_learning_effect(data)
 
 
-    # Radar charts for professions
-    for profession in ['phd student', 'software engineer', 'student', 'master student']:
-        plot_radar_chart(data, profession)
+    # # Radar charts for professions
+    # for profession in ['phd student', 'software engineer', 'student', 'master student']:
+    #     plot_radar_chart(data, profession)
 
-    regularization_analysis(data)
+    # regularization_analysis(data)
 
-    # Plot performance with critical delay
-    plot_with_critical_delay(data)
+    # # Plot performance with critical delay
+    # plot_with_critical_delay(data)
 
-    # Plot individual participant performance
-    plot_all_metrics_separately(data)
-    plot_all_metrics_separately_boxplot(data)
+    # # Plot individual participant performance
+    # plot_all_metrics_separately(data)
+    # plot_all_metrics_separately_boxplot(data)
 
-    # Plot individual participant performance vs. delays
-    plot_all_metrics_vs_delays(data)
+    # # Plot individual participant performance vs. delays
+    # plot_all_metrics_vs_delays(data)
     plot_all_metrics_vs_delays_lineplot(data)
 
-    # Call the function with your dataset
-    statistical_analysis(data)
+    # # Call the function with your dataset
+    # statistical_analysis(data)
 
-    #Comprehensive regression analysis
-    comprehensive_regression_analysis(data)
+    # #Comprehensive regression analysis
+    # comprehensive_regression_analysis(data)
 
-    #Output summary statistics
-    summary_stats = output_summary_statistics(data)
+    # # Regularization analysis
+    # regularization_analysis(data)
 
-    #Calculate and plot statistics
-    calculate_and_plot_statistics(data)
+    # #Output summary statistics
+    # summary_stats = output_summary_statistics(data)
 
-    #Calculate and plot statistics by delay
-    # stats = calculate_and_plot_statistics_by_delay(data)
+    # #Calculate and plot statistics
+    # calculate_and_plot_statistics(data)
 
+    # #Calculate and plot statistics by delay
+    # # stats = calculate_and_plot_statistics_by_delay(data)
+
+    # # Plot Spearman correlation heatmap
+    # plot_spearman_correlation_heatmap(data)
+
+    # Calculate baseline performance
+    # baseline_performance = calculate_baseline_performance(data, metric='Maze Score (%)')
+    # plot_baseline_performance(baseline_performance, y='Maze Score (%)')
+
+
+
+    
 
