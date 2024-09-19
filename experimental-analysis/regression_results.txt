@@ -4,8 +4,8 @@
 Dep. Variable:                      y   R-squared:                       0.364
 Model:                            OLS   Adj. R-squared:                  0.321
 Method:                 Least Squares   F-statistic:                     8.404
-Date:                Mon, 16 Sep 2024   Prob (F-statistic):           0.000158
-Time:                        13:18:29   Log-Likelihood:                -196.95
+Date:                Thu, 19 Sep 2024   Prob (F-statistic):           0.000158
+Time:                        12:38:58   Log-Likelihood:                -196.95
 No. Observations:                  48   AIC:                             401.9
 Df Residuals:                      44   BIC:                             409.4
 Df Model:                           3                                         
@@ -35,8 +35,8 @@ strong multicollinearity or other numerical problems.
 Dep. Variable:                      y   R-squared:                       0.114
 Model:                            OLS   Adj. R-squared:                  0.053
 Method:                 Least Squares   F-statistic:                     1.885
-Date:                Mon, 16 Sep 2024   Prob (F-statistic):              0.146
-Time:                        13:18:29   Log-Likelihood:                -201.82
+Date:                Thu, 19 Sep 2024   Prob (F-statistic):              0.146
+Time:                        12:38:59   Log-Likelihood:                -201.82
 No. Observations:                  48   AIC:                             411.6
 Df Residuals:                      44   BIC:                             419.1
 Df Model:                           3                                         
