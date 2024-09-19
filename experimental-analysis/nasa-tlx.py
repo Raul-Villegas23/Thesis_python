@@ -112,8 +112,8 @@ def plot_data():
             overall_score = [float(row[7]) for row in data]
 
             # Calculate statistics
-            subscales = [mental_demand, physical_demand, temporal_demand, performance, effort, frustration, overall_score]
-            subscale_names = ["Mental Demand", "Physical Demand", "Temporal Demand", "Performance", "Effort", "Frustration", "Overall Score"]
+            subscales = [mental_demand, temporal_demand, performance, effort, frustration, overall_score] # Excluding Physical Demand
+            subscale_names = ["Mental Demand", "Temporal Demand", "Performance", "Effort", "Frustration", "Overall Score"] # Excluding Physical Demand
 
             mean_values = [np.mean(subscale) for subscale in subscales]
             std_dev_values = [np.std(subscale) for subscale in subscales]
@@ -169,7 +169,7 @@ def plot_data():
             plt.tight_layout(pad=2.0)
             plt.show()
 
-            # Separate window for normal distribution plots
+            # Separate window for normal distribution plots (excluding Physical Demand)
             plt.figure(figsize=(10, 6))
             x = np.linspace(0, 100, 1000)
             for i, subscale in enumerate(subscales[:-1]):  # Exclude overall score from normal distribution plot
