@@ -19,6 +19,7 @@ from sklearn.model_selection import cross_val_score
 from statsmodels.stats.anova import anova_lm
 from statsmodels.formula.api import ols
 from statsmodels.graphics.gofplots import qqplot
+from statsmodels.stats.oneway import anova_oneway
 
 
 # Load and preprocess data
@@ -933,6 +934,30 @@ def check_anova_assumptions(model, data, dependent_var, independent_var):
     else:
         print("Variances are equal across groups (p-value >= 0.05).")
 
+def perform_non_parametric_tests(data, dependent_var, independent_var):
+    """
+    Perform Kruskal-Wallis test and Welch's ANOVA to handle violations of normality and homogeneity.
+    """
+    # Prepare the groups for Kruskal-Wallis
+    groups = [data[dependent_var][data[independent_var] == level] for level in data[independent_var].unique()]
+
+    # 1. Kruskal-Wallis Test (Non-parametric alternative to ANOVA)
+    kruskal_test = stats.kruskal(*groups)
+    print(f"Kruskal-Wallis test for {dependent_var} vs {independent_var}: H-statistic={kruskal_test.statistic}, p-value={kruskal_test.pvalue}")
+    if kruskal_test.pvalue < 0.05:
+        print(f"Significant differences in {dependent_var} across {independent_var} groups (p-value < 0.05).")
+    else:
+        print(f"No significant differences in {dependent_var} across {independent_var} groups (p-value >= 0.05).")
+
+    # 2. Welch’s ANOVA (Robust to heterogeneity of variances)
+    welch_anova = anova_oneway(groups, use_var='unequal', welch_correction=True)
+    print(f"Welch's ANOVA for {dependent_var} vs {independent_var}: F-statistic={welch_anova.statistic}, p-value={welch_anova.pvalue}")
+    if welch_anova.pvalue < 0.05:
+        print(f"Significant differences in {dependent_var} across {independent_var} groups (p-value < 0.05).")
+    else:
+        print(f"No significant differences in {dependent_var} across {independent_var} groups (p-value >= 0.05).")
+
+
 
 # Main script execution
 if __name__ == "__main__":
@@ -966,6 +991,10 @@ if __name__ == "__main__":
 
         # Check ANOVA assumptions
         check_anova_assumptions(model, data, var, independent_var)
+    
+    for var in dependent_vars:
+        print(f"--- Non-parametric tests for {var} ---")
+        perform_non_parametric_tests(data, var, independent_var)
 
     # Corrected column names for aggregation
     grouped_data = data.groupby('Delays').agg({
