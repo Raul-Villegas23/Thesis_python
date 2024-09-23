@@ -453,10 +453,10 @@ def plot_all_metrics_vs_delays_lineplot(data):
     # 1. Plot Driving Performance for all participants vs Delays
     for i, participant in enumerate(participants):
         participant_data = data[data['name'] == participant]
-        sns.lineplot(x='Delays', y='Driving Performance', data=participant_data, color=palette[i], label=f'P{participant}', linestyle='-', marker='o', ax=axs[0], linewidth= 2.5)
-    axs[0].set_title('Driving Performance vs. Delays', fontsize=22, fontweight='bold')
-    axs[0].set_xlabel('Delays (ms)', fontsize=16)
-    axs[0].set_ylabel('Driving Performance (%)', fontsize=16)
+        sns.lineplot(x='Delays', y='Driving_Performance', data=participant_data, color=palette[i], label=f'P{participant}', linestyle='-', marker='o', ax=axs[0], linewidth= 2.5)
+    axs[0].set_title('Driving_Performance vs. Delays', fontsize=22, fontweight='bold')
+    axs[0].set_xlabel('Delays', fontsize=16)
+    axs[0].set_ylabel('Driving_Performance (%)', fontsize=16)
     axs[0].set_ylim(0, 100)
     axs[0].grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
     axs[0].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8, title='Participants', title_fontsize=10)
@@ -464,10 +464,10 @@ def plot_all_metrics_vs_delays_lineplot(data):
     # 2. Plot Maze Score for all participants vs Delays
     for i, participant in enumerate(participants):
         participant_data = data[data['name'] == participant]
-        sns.lineplot(x='Delays', y='Maze Score (%)', data=participant_data, color=palette[i], label=f'P{participant}', linestyle='-', marker='x', ax=axs[1], linewidth= 2.5)
+        sns.lineplot(x='Delays', y='Maze_Score', data=participant_data, color=palette[i], label=f'P{participant}', linestyle='-', marker='x', ax=axs[1], linewidth= 2.5)
     axs[1].set_title('Maze Score vs. Delays', fontsize=22, fontweight='bold')
-    axs[1].set_xlabel('Delays (ms)', fontsize=16)
-    axs[1].set_ylabel('Maze Score (%)', fontsize=16)
+    axs[1].set_xlabel('Delays', fontsize=16)
+    axs[1].set_ylabel('Maze_Score', fontsize=16)
     axs[1].set_ylim(0, 100)
     axs[1].grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
     axs[1].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8, title='Participants', title_fontsize=10)
@@ -1033,7 +1033,7 @@ if __name__ == "__main__":
 
     # # Plot individual participant performance vs. delays
     # plot_all_metrics_vs_delays(data)
-    # plot_all_metrics_vs_delays_lineplot(data)
+    plot_all_metrics_vs_delays_lineplot(data)
 
     # # Call the function with your dataset
     # statistical_analysis(data)
