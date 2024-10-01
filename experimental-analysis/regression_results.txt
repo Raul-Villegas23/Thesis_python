@@ -1,11 +1,11 @@
-=== Regression Results: Driving Performance ===
+=== Regression Results: Driving_Performance ===
                             OLS Regression Results                            
 ==============================================================================
 Dep. Variable:                      y   R-squared:                       0.364
 Model:                            OLS   Adj. R-squared:                  0.321
 Method:                 Least Squares   F-statistic:                     8.404
-Date:                Wed, 18 Sep 2024   Prob (F-statistic):           0.000158
-Time:                        13:59:03   Log-Likelihood:                -196.95
+Date:                Tue, 01 Oct 2024   Prob (F-statistic):           0.000158
+Time:                        13:21:30   Log-Likelihood:                -196.95
 No. Observations:                  48   AIC:                             401.9
 Df Residuals:                      44   BIC:                             409.4
 Df Model:                           3                                         
@@ -29,14 +29,14 @@ Notes:
 [2] The condition number is large, 8.32e+03. This might indicate that there are
 strong multicollinearity or other numerical problems.
 
-=== Regression Results: Maze Score (%) ===
+=== Regression Results: Maze_Score ===
                             OLS Regression Results                            
 ==============================================================================
 Dep. Variable:                      y   R-squared:                       0.114
 Model:                            OLS   Adj. R-squared:                  0.053
 Method:                 Least Squares   F-statistic:                     1.885
-Date:                Wed, 18 Sep 2024   Prob (F-statistic):              0.146
-Time:                        13:59:05   Log-Likelihood:                -201.82
+Date:                Tue, 01 Oct 2024   Prob (F-statistic):              0.146
+Time:                        13:21:31   Log-Likelihood:                -201.82
 No. Observations:                  48   AIC:                             411.6
 Df Residuals:                      44   BIC:                             419.1
 Df Model:                           3                                         
@@ -53,6 +53,37 @@ Omnibus:                        3.064   Durbin-Watson:                   1.105
 Prob(Omnibus):                  0.216   Jarque-Bera (JB):                2.818
 Skew:                           0.582   Prob(JB):                        0.244
 Kurtosis:                       2.763   Cond. No.                     8.32e+03
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+[2] The condition number is large, 8.32e+03. This might indicate that there are
+strong multicollinearity or other numerical problems.
+
+=== Regression Results: Weighted_NASA_TLX_Score ===
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                      y   R-squared:                       0.094
+Model:                            OLS   Adj. R-squared:                  0.032
+Method:                 Least Squares   F-statistic:                     1.523
+Date:                Tue, 01 Oct 2024   Prob (F-statistic):              0.222
+Time:                        13:21:32   Log-Likelihood:                -209.90
+No. Observations:                  48   AIC:                             427.8
+Df Residuals:                      44   BIC:                             435.3
+Df Model:                           3                                         
+Covariance Type:            nonrobust                                         
+=========================================================================================
+                            coef    std err          t      P>|t|      [0.025      0.975]
+-----------------------------------------------------------------------------------------
+const                    45.2480     24.308      1.861      0.069      -3.742      94.238
+Delays                    0.0073      0.005      1.483      0.145      -0.003       0.017
+age                      -0.8656      0.835     -1.037      0.306      -2.548       0.817
+gaming experience_yes     4.1352      7.027      0.588      0.559     -10.026      18.297
+==============================================================================
+Omnibus:                        9.645   Durbin-Watson:                   1.150
+Prob(Omnibus):                  0.008   Jarque-Bera (JB):                3.053
+Skew:                           0.223   Prob(JB):                        0.217
+Kurtosis:                       1.848   Cond. No.                     8.32e+03
 ==============================================================================
 
 Notes:
