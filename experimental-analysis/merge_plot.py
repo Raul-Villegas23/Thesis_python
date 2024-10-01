@@ -30,6 +30,7 @@ def load_and_preprocess_data(csv_file):
         'Time Scores': 'Time_Scores',
         'Driving Performance': 'Driving_Performance',
         'Overall Performance': 'Overall_Performance',
+        'Overall Score': 'NASA_TLX_Score',
         'Weighted NASA TLX Score': 'Weighted_NASA_TLX_Score'
     }, inplace=True)
     data['Maze_Score'] = data['Maze_Score'].str.rstrip('%').astype(float)
@@ -71,6 +72,30 @@ def plot_with_regression(x, y, data, color, xlabel, ylabel, title, weights=None)
     plt.tight_layout()
     plt.show()
 
+def calculate_and_plot_performance_by_delays(data):
+    
+    # Sort data by 'Delays' and 'Participant Number'
+    data = data.sort_values(by=['Participant Number', 'Delays'])
+
+    plt.figure(figsize=(14, 8))
+
+    # Create box plot for performance metrics (no aggregation, use original data)
+    data_long = pd.melt(data, id_vars=['Delays'], 
+                        value_vars=['Driving_Performance', 'Maze_Score'], 
+                        var_name='Metric', value_name='Performance_Value')  # Renamed value_name
+
+    sns.boxplot(x='Delays', y='Performance_Value', hue='Metric', data=data_long, showfliers=False)
+
+    # Plot settings
+    plt.title('Performance by Delays (Box Plot)', fontsize=22, fontweight='bold')
+    plt.xlabel('Time Delay (ms)', fontsize=18)
+    plt.ylabel('Performance (%)', fontsize=18)
+    plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+    plt.legend(title='Metrics', fontsize=14, title_fontsize=16)
+    plt.tight_layout()
+    plt.show()
+
+
 # Calculate weighted NASA TLX scores
 def calculate_weighted_scores(data, weights):
     for dimension, weight in weights.items():
@@ -86,16 +111,17 @@ def calculate_weighted_scores(data, weights):
     return data
 
 
-def calculate_and_plot_learning_effect(data):
+def calculate_and_plot_learning_effect_barplot(data):
+
     data = data.sort_values(by=['Participant Number'])
     data['Trial'] = data.groupby('name').cumcount() + 1
 
     # Calculate mean performance metrics across trials
     mean_performance = data.groupby('Trial').agg({
-        'Driving Performance': 'mean',
-        'Maze Score (%)': 'mean',
-        'Overall Performance': 'mean',
-        'Weighted NASA TLX Score': 'mean'  # Use Weighted NASA TLX Score instead of Overall Score
+        'Driving_Performance': 'mean',
+        'Maze_Score': 'mean',
+        'Overall_Performance': 'mean',
+        'Weighted_NASA_TLX_Score': 'mean'
     }).reset_index()
 
     # Calculate learning effects
@@ -104,52 +130,25 @@ def calculate_and_plot_learning_effect(data):
 
     plt.figure(figsize=(14, 8))
 
-    # Plot the performance metrics with trendlines
-    sns.lineplot(x='Trial', y='Driving Performance', data=mean_performance, marker='o', color='blue', label='Driving Performance', linewidth=2.5)
-    sns.regplot(x='Trial', y='Driving Performance', data=mean_performance, scatter=False, color='blue', line_kws={"linestyle": "--", "linewidth": 2})
+    # Bar plot for mean performance
+    mean_performance_long = pd.melt(mean_performance, id_vars='Trial', 
+                                    value_vars=['Driving_Performance', 'Maze_Score'], 
+                                    var_name='Metric', value_name='Performance')
+    sns.barplot(x='Trial', y='Performance', hue='Metric', data=mean_performance_long)
 
-    sns.lineplot(x='Trial', y='Maze Score (%)', data=mean_performance, marker='o', color='orange', label='Maze Score', linewidth=2.5)
-    sns.regplot(x='Trial', y='Maze Score (%)', data=mean_performance, scatter=False, color='orange', line_kws={"linestyle": "--", "linewidth": 2})
+    # Add trend lines using sns.pointplot (which aligns automatically)
+    sns.pointplot(x='Trial', y='Driving_Performance', data=mean_performance, 
+                color='blue', label='Driving Performance Trend', markers='o', linestyles='--', ci=None)
 
-    # sns.lineplot(x='Trial', y='Overall Performance', data=mean_performance, marker='o', color='green', label='Overall Performance', linewidth=2.5)
-    # sns.regplot(x='Trial', y='Overall Performance', data=mean_performance, scatter=False, color='green', line_kws={"linestyle": "--", "linewidth": 2})
+    sns.pointplot(x='Trial', y='Maze_Score', data=mean_performance, 
+                color='orange', label='Maze Score Trend', markers='o', linestyles='--', ci=None)
 
-    # Plot the Weighted NASA TLX Score with trendlines
-    # sns.lineplot(x='Trial', y='Weighted NASA TLX Score', data=mean_performance, marker='o', color='purple', label='Weighted NASA TLX Score', linewidth=2.5)
-    # sns.regplot(x='Trial', y='Weighted NASA TLX Score', data=mean_performance, scatter=False, color='purple', line_kws={"linestyle": "--", "linewidth": 2})
 
-    # Confidence intervals
-    sns.lineplot(x='Trial', y='Driving Performance', data=data, estimator='mean', ci='sd', color='blue', alpha=0.3)
-    sns.lineplot(x='Trial', y='Maze Score (%)', data=data, estimator='mean', ci='sd', color='orange', alpha=0.3)
-    # sns.lineplot(x='Trial', y='Overall Performance', data=data, estimator='mean', ci='sd', color='green', alpha=0.3)
-    # sns.lineplot(x='Trial', y='Weighted NASA TLX Score', data=data, estimator='mean', ci='sd', color='purple', alpha=0.3)
-
-    # # Annotate the percentage change in Weighted NASA TLX Score
-    # plt.text(1.5, mean_performance['Weighted NASA TLX Score'].max() + 5, 
-    #          f'Change in Weighted NASA TLX Score: {learning_effect_tlx:.2f}%', 
-    #          fontsize=14, color='purple', fontweight='bold', ha='left')
-    
-    # # Annotate the percentage change in overall performance
-    # plt.text(1.5, mean_performance['Overall Performance'].max() - 10,
-    #             f'Change in Overall Performance: {learning_effect_performance[2]:.2f}%', 
-    #             fontsize=14, color='green', fontweight='bold', ha='left')
-    # Annotate the percentage change in driving performance
-    plt.text(1.5, mean_performance['Driving Performance'].max() - 10,
-                f'Change in Driving Performance: {learning_effect_performance[0]:.2f}%', 
-                fontsize=14, color='blue', fontweight='bold', ha='left')
-    # Annotate the percentage change in maze score
-    plt.text(1.5, mean_performance['Maze Score (%)'].max() - 10,
-                f'Change in Maze Score: {learning_effect_performance[1]:.2f}%', 
-                fontsize=14, color='orange', fontweight='bold', ha='left')
-    
-
-    plt.title('Learning Effect Across Trials', fontsize=22, fontweight='bold')
+    plt.title('Learning Effect Across Trials with Trend Line', fontsize=22, fontweight='bold')
     plt.xlabel('Trial Number', fontsize=18)
-    plt.ylabel('Performance (%) / Weighted NASA TLX Score', fontsize=18)
-    plt.ylim(0, 100)
+    plt.ylabel('Performance (%)', fontsize=18)
     plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
     plt.legend(title='Metrics', fontsize=14, title_fontsize=16)
-    plt.gca().patch.set_facecolor('#f7f7f7')
     plt.tight_layout()
     plt.show()
 
@@ -180,23 +179,6 @@ def plot_radar_chart(data, profession):
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(labels, fontsize=12)
     ax.set_title(f'Radar Chart of NASA TLX Dimensions for {profession}', size=20, color='black', y=1.1)
-    plt.show()
-
-# Plot trend analysis over participant number
-def plot_trend_analysis(data):
-    plt.figure(figsize=(14, 8))
-    sns.lineplot(x='Participant Number', y='Overall Performance', data=data, marker='o', color='green', label='Overall Performance', linewidth=2.5)
-    sns.lineplot(x='Participant Number', y='Maze Score (%)', data=data, marker='o', color='orange', label='Maze Score', linewidth=2.5)
-    sns.lineplot(x='Participant Number', y='Driving Performance', data=data, marker='o', color='blue', label='Driving Performance', linewidth=2.5)
-
-    plt.title('Trend Analysis Over Participant Number', fontsize=20, fontweight='bold')
-    plt.xlabel('Participant Number', fontsize=16)
-    plt.ylabel('Performance (%)', fontsize=16)
-    plt.ylim(0, 100)
-    plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
-    plt.legend(title='Metrics', fontsize=12, title_fontsize=14)
-    plt.gca().patch.set_facecolor('#f7f7f7')
-    plt.tight_layout()
     plt.show()
 
 # Comparison of NASA TLX Dimension Scores vs Time Delays
@@ -244,7 +226,7 @@ def plot_nasa_tlx_area(data):
 def plot_correlation_heatmap(data):
     dimensions = ["Mental Demand", "Physical Demand", "Temporal Demand", "Performance", "Effort", "Frustration"]
     plt.figure(figsize=(10, 8))
-    correlation_matrix = data[['Delays', 'Driving Performance', 'Maze Score (%)'] + dimensions].corr()
+    correlation_matrix = data[['Delays', 'Driving_Performance', 'Maze_Score'] + dimensions].corr()
     sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', vmin=-1, vmax=1, linewidths=0.5)
     plt.title('Correlation Heatmap of Time Delays, Performance, Maze, and NASA TLX Dimensions', fontsize=18, fontweight='bold')
     plt.show()
@@ -286,13 +268,13 @@ def plot_with_critical_delay(data):
 
     plt.figure(figsize=(14, 8))
 
-    # Plot Driving Performance vs. Time Delays
-    sns.lineplot(x='Delays', y='Driving Performance', data=data, color='blue', label='Driving Performance', linewidth=2.5)
-    sns.regplot(x='Delays', y='Driving Performance', data=data, scatter=False, color='blue', line_kws={"linewidth": 2, "linestyle": "--"})
+    # Plot Driving_Performance vs. Time Delays
+    sns.lineplot(x='Delays', y='Driving_Performance', data=data, color='blue', label='Driving_Performance', linewidth=2.5)
+    sns.regplot(x='Delays', y='Driving_Performance', data=data, scatter=False, color='blue', line_kws={"linewidth": 2, "linestyle": "--"})
 
     # Plot Maze Score vs. Time Delays
-    sns.lineplot(x='Delays', y='Maze Score (%)', data=data, color='orange', label='Maze Score', linewidth=2.5)
-    sns.regplot(x='Delays', y='Maze Score (%)', data=data, scatter=False, color='orange', line_kws={"linewidth": 2, "linestyle": "--"})
+    sns.lineplot(x='Delays', y='Maze_Score', data=data, color='orange', label='Maze Score', linewidth=2.5)
+    sns.regplot(x='Delays', y='Maze_Score', data=data, scatter=False, color='orange', line_kws={"linewidth": 2, "linestyle": "--"})
 
     # Plot Overall Performance vs. Time Delays
     sns.lineplot(x='Delays', y='Overall Performance', data=data, color='green', label='Overall Performance', linewidth=2.5)
@@ -330,14 +312,14 @@ def plot_all_metrics_separately(data):
     # Define a color palette for each participant
     palette = sns.color_palette("husl", len(participants))
 
-    # 1. Plot Driving Performance for all participants
+    # 1. Plot Driving_Performance for all participants
     plt.figure(figsize=(14, 8))
     for i, participant in enumerate(participants):
         participant_data = data[data['name'] == participant]
-        sns.lineplot(x='Trial', y='Driving Performance', data=participant_data, color=palette[i], label=f'{participant}', linestyle='-', marker='o')
-    plt.title('Driving Performance Across Trials', fontsize=22, fontweight='bold')
+        sns.lineplot(x='Trial', y='Driving_Performance', data=participant_data, color=palette[i], label=f'{participant}', linestyle='-', marker='o')
+    plt.title('Driving_Performance Across Trials', fontsize=22, fontweight='bold')
     plt.xlabel('Trial Number', fontsize=18, fontweight='bold')
-    plt.ylabel('Driving Performance (%)', fontsize=18, fontweight='bold')
+    plt.ylabel('Driving_Performance (%)', fontsize=18, fontweight='bold')
     plt.ylim(0, 100)
     plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10, title='Participants', title_fontsize=12)
@@ -348,10 +330,10 @@ def plot_all_metrics_separately(data):
     plt.figure(figsize=(14, 8))
     for i, participant in enumerate(participants):
         participant_data = data[data['name'] == participant]
-        sns.lineplot(x='Trial', y='Maze Score (%)', data=participant_data, color=palette[i], label=f'{participant}', linestyle='-', marker='x')
+        sns.lineplot(x='Trial', y='Maze_Score', data=participant_data, color=palette[i], label=f'{participant}', linestyle='-', marker='x')
     plt.title('Maze Score Across Trials', fontsize=22, fontweight='bold')
     plt.xlabel('Trial Number', fontsize=18, fontweight='bold')
-    plt.ylabel('Maze Score (%)', fontsize=18, fontweight='bold')
+    plt.ylabel('Maze_Score', fontsize=18, fontweight='bold')
     plt.ylim(0, 100)
     plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10, title='Participants', title_fontsize=12)
@@ -378,14 +360,14 @@ def plot_all_metrics_vs_delays(data):
     # Define a color palette for each participant
     palette = sns.color_palette("husl", len(participants))
 
-    # 1. Plot Driving Performance for all participants vs Delays
+    # 1. Plot Driving_Performance for all participants vs Delays
     plt.figure(figsize=(14, 8))
     for i, participant in enumerate(participants):
         participant_data = data[data['name'] == participant]
-        sns.lineplot(x='Delays', y='Driving Performance', data=participant_data, color=palette[i], label=f'{participant}', linestyle='-', marker='o')
-    plt.title('Driving Performance vs. Delays', fontsize=22, fontweight='bold')
+        sns.lineplot(x='Delays', y='Driving_Performance', data=participant_data, color=palette[i], label=f'{participant}', linestyle='-', marker='o')
+    plt.title('Driving_Performance vs. Delays', fontsize=22, fontweight='bold')
     plt.xlabel('Delays (ms)', fontsize=18, fontweight='bold')
-    plt.ylabel('Driving Performance (%)', fontsize=18, fontweight='bold')
+    plt.ylabel('Driving_Performance (%)', fontsize=18, fontweight='bold')
     plt.ylim(0, 100)
     plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10, title='Participants', title_fontsize=12)
@@ -396,10 +378,10 @@ def plot_all_metrics_vs_delays(data):
     plt.figure(figsize=(14, 8))
     for i, participant in enumerate(participants):
         participant_data = data[data['name'] == participant]
-        sns.lineplot(x='Delays', y='Maze Score (%)', data=participant_data, color=palette[i], label=f'{participant}', linestyle='-', marker='x')
+        sns.lineplot(x='Delays', y='Maze_Score', data=participant_data, color=palette[i], label=f'{participant}', linestyle='-', marker='x')
     plt.title('Maze Score vs. Delays', fontsize=22, fontweight='bold')
     plt.xlabel('Delays (ms)', fontsize=18, fontweight='bold')
-    plt.ylabel('Maze Score (%)', fontsize=18, fontweight='bold')
+    plt.ylabel('Maze_Score', fontsize=18, fontweight='bold')
     plt.ylim(0, 100)
     plt.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10, title='Participants', title_fontsize=12)
@@ -426,7 +408,7 @@ def plot_all_metrics_separately_boxplot(data):
         data = data.sort_values(by=['Participant Number'])  # Sort by participant number first
         data['Trial'] = data.groupby('name').cumcount() + 1  # Add trial numbers for each participant
 
-    metrics = ["Driving Performance", "Maze Score (%)", "Weighted NASA TLX Score"]
+    metrics = ["Driving_Performance", "Maze_Score", "Weighted NASA TLX Score"]
 
     plt.figure(figsize=(14, 12))
     for i, metric in enumerate(metrics):
@@ -450,31 +432,64 @@ def plot_all_metrics_vs_delays_lineplot(data):
     # Create a figure with 2 subplots (subfigures) arranged vertically
     fig, axs = plt.subplots(2, 1, figsize=(14, 12))  # 2 rows, 1 column
 
-    # 1. Plot Driving Performance for all participants vs Delays
+    # 1. Plot Driving_Performance for all participants vs Delays
     for i, participant in enumerate(participants):
         participant_data = data[data['name'] == participant]
-        sns.lineplot(x='Delays', y='Driving_Performance', data=participant_data, color=palette[i], label=f'P{participant}', linestyle='-', marker='o', ax=axs[0], linewidth= 2.5)
+        sns.lineplot(
+            x='Delays', 
+            y='Driving_Performance', 
+            data=participant_data, 
+            color=palette[i], 
+            label=f'P{participant}', 
+            linestyle='-', 
+            marker='o', 
+            ax=axs[0], 
+            linewidth=3,  # Thicker lines to highlight differences
+            markersize=8  # Larger markers
+        )
     axs[0].set_title('Driving_Performance vs. Delays', fontsize=22, fontweight='bold')
     axs[0].set_xlabel('Delays', fontsize=16)
     axs[0].set_ylabel('Driving_Performance (%)', fontsize=16)
-    axs[0].set_ylim(0, 100)
+    
+    # Set a dynamic y-axis limit based on data to highlight participant differences
+    max_perf = data['Driving_Performance'].max()
+    min_perf = data['Driving_Performance'].min()
+    axs[0].set_ylim(min_perf - 5, max_perf + 5)
+
     axs[0].grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
     axs[0].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8, title='Participants', title_fontsize=10)
 
     # 2. Plot Maze Score for all participants vs Delays
     for i, participant in enumerate(participants):
         participant_data = data[data['name'] == participant]
-        sns.lineplot(x='Delays', y='Maze_Score', data=participant_data, color=palette[i], label=f'P{participant}', linestyle='-', marker='x', ax=axs[1], linewidth= 2.5)
+        sns.lineplot(
+            x='Delays', 
+            y='Maze_Score', 
+            data=participant_data, 
+            color=palette[i], 
+            label=f'P{participant}', 
+            linestyle='-', 
+            marker='x', 
+            ax=axs[1], 
+            linewidth=3,  # Thicker lines to highlight differences
+            markersize=8  # Larger markers
+        )
     axs[1].set_title('Maze Score vs. Delays', fontsize=22, fontweight='bold')
     axs[1].set_xlabel('Delays', fontsize=16)
-    axs[1].set_ylabel('Maze_Score', fontsize=16)
-    axs[1].set_ylim(0, 100)
+    axs[1].set_ylabel('Maze Score', fontsize=16)
+    
+    # Set a dynamic y-axis limit based on data to highlight participant differences
+    max_maze = data['Maze_Score'].max()
+    min_maze = data['Maze_Score'].min()
+    axs[1].set_ylim(min_maze - 5, max_maze + 5)
+
     axs[1].grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
     axs[1].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8, title='Participants', title_fontsize=10)
 
     # Adjust layout for better spacing
     plt.tight_layout(rect=[0, 0, 0.9, 1])  # Adjust right margin for legend
     plt.show()
+
 
 
 
@@ -495,7 +510,7 @@ def statistical_analysis(data):
     data_encoded = pd.get_dummies(data, columns=['profession', 'gaming experience'], drop_first=True)
 
     # Ensure all numeric columns are properly cast as float/int
-    numeric_columns = ['Delays', 'age', 'Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    numeric_columns = ['Delays', 'age', 'Driving_Performance', 'Maze_Score', 'Weighted_NASA_TLX_Score']
     for col in numeric_columns:
         data_encoded[col] = pd.to_numeric(data_encoded[col], errors='coerce')
 
@@ -514,7 +529,7 @@ def statistical_analysis(data):
     # Define dependent variables
     try:
         with open("regression_results.txt", "w") as f:
-            for outcome in ['Driving Performance', 'Maze Score (%)']:
+            for outcome in ['Driving_Performance', 'Maze_Score', 'Weighted_NASA_TLX_Score']:
                 y = np.asarray(data_encoded[outcome])
                 model = sm.OLS(y, X).fit()
                 f.write(f"=== Regression Results: {outcome} ===\n")
@@ -546,7 +561,7 @@ def comprehensive_regression_analysis(data):
     data_encoded = pd.get_dummies(data, columns=['profession', 'gaming experience'], drop_first=True)
     
     # Convert selected columns to numeric
-    numeric_cols = ['Delays', 'age', 'Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    numeric_cols = ['Delays', 'age', 'Driving_Performance', 'Maze_Score', 'Weighted NASA TLX Score']
     for col in numeric_cols:
         data_encoded[col] = pd.to_numeric(data_encoded[col], errors='coerce')
     
@@ -555,7 +570,7 @@ def comprehensive_regression_analysis(data):
     data_encoded[boolean_columns] = data_encoded[boolean_columns].astype(int)
     
     # Drop rows with missing values in key columns
-    data_encoded = data_encoded.dropna(subset=['Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score', 'Delays', 'age'])
+    data_encoded = data_encoded.dropna(subset=['Driving_Performance', 'Maze_Score', 'Weighted NASA TLX Score', 'Delays', 'age'])
     
     # Standardize numeric features to improve condition number and reduce multicollinearity issues
     data_encoded[['Delays', 'age']] = (data_encoded[['Delays', 'age']] - data_encoded[['Delays', 'age']].mean()) / data_encoded[['Delays', 'age']].std()
@@ -565,7 +580,7 @@ def comprehensive_regression_analysis(data):
     X = sm.add_constant(X)  # Add a constant term for the intercept
     
     # Define dependent variable
-    y = data_encoded['Driving Performance']
+    y = data_encoded['Driving_Performance']
     
     # OLS Model
     model_ols = sm.OLS(y, X).fit()
@@ -604,14 +619,14 @@ def comprehensive_regression_analysis(data):
 
     # Fit Robust Linear Model (RLM) to handle outliers
     model_rlm = sm.RLM(y, X, M=sm.robust.norms.HuberT()).fit()
-    print("\n=== Robust Linear Model: Driving Performance ===")
+    print("\n=== Robust Linear Model: Driving_Performance ===")
     print(model_rlm.summary())
     
     # Fit Generalized Least Squares (GLS) to handle heteroscedasticity
     # Assume variance inversely proportional to squared Delays (you can change this assumption)
     weights = 1 / (data_encoded['Delays'] ** 2)
     model_gls = sm.GLS(y, X, sigma=weights).fit()
-    print("\n=== GLS Regression Results: Driving Performance ===")
+    print("\n=== GLS Regression Results: Driving_Performance ===")
     print(model_gls.summary())
 
 # Helper function for VIF
@@ -637,7 +652,7 @@ def regularization_analysis(data):
     print("Available columns after encoding: ", data_encoded.columns)
 
     # Ensure that the data is numeric and contains no NaN values
-    numeric_columns = ['Delays', 'age', 'Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    numeric_columns = ['Delays', 'age', 'Driving Performance', 'Maze_Score', 'Weighted NASA TLX Score']
     data_encoded = data_encoded.dropna(subset=numeric_columns)
     
     # Now, ensure the encoded columns exist
@@ -693,26 +708,27 @@ def regularization_analysis(data):
     plt.grid(True)
     plt.tight_layout()
     plt.show()
-
-def output_summary_statistics(data):
-    # Specify the columns for which we want to calculate mean and standard deviation
-    metrics = ['Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
     
-    # Calculate mean and standard deviation for each metric
-    summary_stats = data[metrics].agg(['mean', 'std']).T
+def output_summary_statistics(data):
+    # Specify the columns for which we want to calculate mean, std, min, and max
+    metrics = ['Driving_Performance', 'Maze_Score', 'NASA_TLX_Score', 'Weighted_NASA_TLX_Score']
+    
+    # Calculate mean, standard deviation, min, and max for each metric
+    summary_stats = data[metrics].agg(['mean', 'std', 'min', 'max']).T
     
     # Rename columns for clarity
-    summary_stats.columns = ['Mean', 'Standard Deviation']
+    summary_stats.columns = ['Mean', 'Standard Deviation', 'Minimum', 'Maximum']
     
     # Display the summary statistics table
-    print("Summary Statistics for Driving Performance, Maze Score, and NASA TLX Score:")
+    print("Summary Statistics for Driving Performance, Maze Score, and NASA TLX Scores:")
     print(summary_stats)
     
     return summary_stats
 
+
 def calculate_and_plot_statistics(data):
     # Calculate means and standard deviations
-    metrics = ['Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    metrics = ['Driving_Performance', 'Maze_Score', 'NASA_TLX_Score', 'Weighted_NASA_TLX_Score']
     
     # Individual NASA TLX dimensions
     nasa_dimensions = ["Mental Demand", "Physical Demand", "Temporal Demand", "Performance", "Effort", "Frustration"]
@@ -725,12 +741,12 @@ def calculate_and_plot_statistics(data):
     for metric in all_metrics:
         mean_val = data[metric].mean()
         std_val = data[metric].std()
-        stats_list.append({'Metric': metric, 'Mean': round(mean_val, 2), 'Standard Deviation': round(std_val, 2)})
+        stats_list.append({'Metric': metric, 'Mean': round(mean_val, 2), 'Standard Deviation': round(std_val, 2), 'Max': round(data[metric].max(), 2), 'Min': round(data[metric].min(), 2)})
     
     stats_df = pd.DataFrame(stats_list)
     
     # Now, plot the table
-    fig, ax = plt.subplots(figsize=(10, len(all_metrics)*0.5))
+    fig, ax = plt.subplots(figsize=(16, len(all_metrics)*0.5))
     ax.axis('tight')
     ax.axis('off')
     table = ax.table(cellText=stats_df.values, colLabels=stats_df.columns, loc='center')
@@ -742,7 +758,7 @@ def calculate_and_plot_statistics(data):
 
 def calculate_and_plot_statistics_by_delay(data):
     # Define the metrics and NASA TLX dimensions that will be used for aggregation
-    metrics = ['Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+    metrics = ['Driving Performance', 'Maze_Score', 'Weighted NASA TLX Score']
     
     # Individual NASA TLX dimensions
     nasa_dimensions = ["Mental Demand", "Physical Demand", "Temporal Demand", "Performance", "Effort", "Frustration"]
@@ -816,7 +832,7 @@ def plot_spearman_correlation_heatmap(data):
     # Select the columns you want to compute the correlation for
     dimensions = ["Mental Demand", "Physical Demand", "Temporal Demand", 
                   "Performance", "Effort", "Frustration", 
-                  'Delays', 'Driving Performance', 'Maze Score (%)', 'Weighted NASA TLX Score']
+                  'Delays', 'Driving Performance', 'Maze_Score', 'Weighted NASA TLX Score']
 
     # Compute the Spearman correlation matrix
     spearman_corr = data[dimensions].corr(method='spearman')
@@ -826,6 +842,7 @@ def plot_spearman_correlation_heatmap(data):
     sns.heatmap(spearman_corr, annot=True, cmap='coolwarm', vmin=-1, vmax=1, linewidths=0.5)
     plt.title('Spearman Correlation Heatmap of Time Delays, Performance, Maze, and NASA TLX Dimensions', fontsize=18, fontweight='bold')
     plt.show()
+
 def calculate_baseline_performance(data, metric='Driving Performance'):
     """
     This function calculates the baseline performance for each participant based on
@@ -849,12 +866,12 @@ def plot_baseline_performance(baseline_performance, y = 'Driving Performance'):
     plt.figure(figsize=(12, 8))
     
     # Plotting the baseline performance
-    sns.barplot(x='name', y=y, data=baseline_performance, palette='plasma')
+    sns.barplot(x='name', y=y, data=baseline_performance, palette='turbo')
     
     # Adding titles and labels
     plt.title('Baseline Performance for Each Participant', fontsize=20, fontweight='bold')
     plt.xlabel('Participant', fontsize=16)
-    plt.ylabel('Baseline Driving performance (%)', fontsize=16)
+    plt.ylabel('Baseline Driving performance (seconds)', fontsize=16)
     
     # Rotating x-axis labels for better visibility
     plt.xticks(rotation=45)
@@ -982,40 +999,36 @@ if __name__ == "__main__":
     # Perform ANOVA
     dependent_vars = ['Driving_Performance', 'Maze_Score', 'Weighted_NASA_TLX_Score']
     independent_var = 'Delays'
-    for var in dependent_vars:
-        # Perform ANOVA
-        model = ols(f'{var} ~ C({independent_var})', data=data).fit()
-        anova_table = sm.stats.anova_lm(model, typ=2)
-        print(f"=== ANOVA Results for {var} vs. {independent_var} ===")
-        print(anova_table)
-
+    # for var in dependent_vars:
+    #     # Perform ANOVA
+    #     perform_anova(data, var, independent_var)
         # Check ANOVA assumptions
-        check_anova_assumptions(model, data, var, independent_var)
+        # check_anova_assumptions(model, data, var, independent_var)
     
-    for var in dependent_vars:
-        print(f"--- Non-parametric tests for {var} ---")
-        perform_non_parametric_tests(data, var, independent_var)
+    # for var in dependent_vars:
+    #     print(f"--- Non-parametric tests for {var} ---")
+    #     perform_non_parametric_tests(data, var, independent_var)
 
     # Corrected column names for aggregation
     grouped_data = data.groupby('Delays').agg({
         'Driving_Performance': 'mean',
         'Maze_Score': 'mean',  # Corrected name
-        'Overall_Performance': 'mean'
+        'Overall_Performance': 'mean',
     }).reset_index()
     
     ## Plotting the data with regression lines
-    # plot_with_regression('Delays', 'Maze Score (%)', grouped_data, 'orange', 'Time Delay (ms)', 'Maze Score (%)', 'Maze Score vs. Time Delays')
-    # plot_with_regression('Delays', 'Driving Performance', grouped_data, 'blue', 'Time Delay (ms)', 'Driving Performance (%)', 'Driving Performance vs. Time Delays')
-    # plot_with_regression('Delays', 'Overall Performance', grouped_data, 'green', 'Time Delay (ms)', 'Overall Performance (%)', 'Overall Performance (Driving + Maze) vs. Time Delays')
+    # plot_with_regression('Delays', 'Maze_Score', grouped_data, 'orange', 'Time Delay (ms)', 'Maze_Score', 'Maze Score vs. Time Delays')
+    # plot_with_regression('Delays', 'Driving_Performance', grouped_data, 'blue', 'Time Delay (ms)', 'Driving_Performance (%)', 'Driving_Performance vs. Time Delays')
+    # plot_with_regression('Delays', 'Overall_Performance', grouped_data, 'green', 'Time Delay (ms)', 'Overall_Performance', 'Overall Performance (Driving + Maze) vs. Time Delays')
 
-    # # Plot NASA TLX dimension comparisons
-    # plot_trend_analysis(data)
+    #  Calculate and plot statistics by delay
+    calculate_and_plot_performance_by_delays(data)
 
     # plot_nasa_tlx_comparison(data)
     # plot_nasa_tlx_area(data)
     # plot_correlation_heatmap(data)
     # plot_boxplots(data)
-    # calculate_and_plot_learning_effect(data)
+    calculate_and_plot_learning_effect_barplot(data)
 
 
     # # Radar charts for professions
@@ -1033,22 +1046,22 @@ if __name__ == "__main__":
 
     # # Plot individual participant performance vs. delays
     # plot_all_metrics_vs_delays(data)
-    plot_all_metrics_vs_delays_lineplot(data)
+    # plot_all_metrics_vs_delays_lineplot(data)
 
     # # Call the function with your dataset
     # statistical_analysis(data)
 
-    # #Comprehensive regression analysis
-    # comprehensive_regression_analysis(data)
+    # # #Comprehensive regression analysis
+    # # comprehensive_regression_analysis(data)
 
-    # # Regularization analysis
-    # regularization_analysis(data)
+    # # # Regularization analysis
+    # # regularization_analysis(data)
 
-    # #Output summary statistics
-    # summary_stats = output_summary_statistics(data)
+    # # #Output summary statistics
+    output_summary_statistics(data)
 
-    # #Calculate and plot statistics
-    # calculate_and_plot_statistics(data)
+    # # #Calculate and plot statistics
+    calculate_and_plot_statistics(data)
 
     # #Calculate and plot statistics by delay
     # # stats = calculate_and_plot_statistics_by_delay(data)
@@ -1057,8 +1070,8 @@ if __name__ == "__main__":
     # plot_spearman_correlation_heatmap(data)
 
     # Calculate baseline performance
-    # baseline_performance = calculate_baseline_performance(data, metric='Maze Score (%)')
-    # plot_baseline_performance(baseline_performance, y='Maze Score (%)')
+    baseline_performance = calculate_baseline_performance(data, metric='Time_Scores')
+    plot_baseline_performance(baseline_performance, y='Time_Scores')
 
 
 
