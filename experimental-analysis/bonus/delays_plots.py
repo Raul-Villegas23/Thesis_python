@@ -10,7 +10,7 @@ correct_path = [
     (0, 3), (0, 4),                  # Moving up
     (1, 4), (2, 4),                  # Moving right
     (2, 5), (2, 6),                  # Moving up
-    (3, 6), (4, 6), (5, 6)           # Moving right
+    (3, 6), (4, 6)       # Moving right
 ]
 
 # Scale the path so each step is 10 meters
@@ -25,19 +25,27 @@ path_x, path_y = zip(*correct_path)
 path_x = np.array(path_x)
 path_y = np.array(path_y)
 
+# Add Gaussian noise to the path to simulate real-world noise (small deviations)
+noise_std_dev = 0.0  # Standard deviation of noise (adjust as needed)
+noise_x = np.random.normal(0, noise_std_dev, path_x.shape)  # Noise for X
+noise_y = np.random.normal(0, noise_std_dev, path_y.shape)  # Noise for Y
+
+# Add noise to the path
+noisy_path_x = path_x + noise_x
+noisy_path_y = path_y + noise_y
+
 # Interpolate the path to get smooth transitions between the grid points
 interpolated_time = np.linspace(0, 60, 500)  # 500 points over 60 seconds for smoother path
-p_target_x = np.interp(interpolated_time, time, path_x)  # Interpolating x positions
-p_target_y = np.interp(interpolated_time, time, path_y)  # Interpolating y positions
+p_target_x = np.interp(interpolated_time, time, noisy_path_x)  # Interpolating x positions
+p_target_y = np.interp(interpolated_time, time, noisy_path_y)  # Interpolating y positions
 
-# Define delays and their corresponding alpha values from the dataset
+# Define delays and their corresponding alpha values from the dataset, with alpha = high for delay = 0
 delays_alpha = {
-    0: 20.0,
-    160: 6.25,
-    400: 2.5,
+    0: 1000,        # High alpha (instantaneous response) for 0 delay
+    80: 12.5,
+    320: 3.13,
     600: 1.67,
     1000: 1.0,
-    1400: 0.71,
     1800: 0.56
 }
 
@@ -69,7 +77,7 @@ for delay, alpha in zip(delay_values, alpha_values):
         p_camera_y[delay][t] = p_camera_y[delay][t-1] + f * delta_p_y
 
 # Generate a square wave for the target path (second plot)
-frequency = 0.1  # Controls the frequency of the square wave (slow changes for the square path)
+frequency = 0.05  # Controls the frequency of the square wave (slow changes for the square path)
 p_square_wave = signal.square(2 * np.pi * frequency * interpolated_time)
 
 # Initialize the camera positions for the square wave target (for different delays)
@@ -87,11 +95,11 @@ for delay, alpha in zip(delay_values, alpha_values):
         f = 1 - np.exp(-alpha * (interpolated_time[t] - interpolated_time[t-1]))
         p_camera_square[delay][t] = p_camera_square[delay][t-1] + f * delta_p
 
-# Plot both figures (Maze path and Square wave path)
+# Plot both figures (Noisy Maze path and Square wave path)
 fig, axs = plt.subplots(2, 1, figsize=(10, 12))
 
-# Plot 1: Target position with the maze-like path
-axs[0].plot(p_target_x, p_target_y, label="Target Path (Maze, 10 meters per step)", linestyle='dashed', color='black')
+# Plot 1: Target position with the noisy maze-like path
+axs[0].plot(p_target_x, p_target_y, label="Target Path", linestyle='dashed', color='black')
 for delay in delay_values:
     axs[0].plot(p_camera_x[delay], p_camera_y[delay], label=f'Delay = {delay} ms')
 
