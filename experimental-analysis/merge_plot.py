@@ -21,7 +21,6 @@ from statsmodels.formula.api import ols
 from statsmodels.graphics.gofplots import qqplot
 from statsmodels.stats.oneway import anova_oneway
 
-
 # Load and preprocess data
 def load_and_preprocess_data(csv_file):
     data = pd.read_csv(csv_file)
@@ -423,7 +422,7 @@ def statistical_analysis(data):
     # Define dependent variables
     try:
         with open("regression_results.txt", "w") as f:
-            for outcome in ['Driving_Performance', 'Maze_Score', 'Weighted_NASA_TLX_Score', 'Physical_Demand', 'Mental_Demand', 'Temporal_Demand', 'Performance', 'Effort', 'Frustration']:
+            for outcome in ['Driving_Performance', 'Maze_Score', 'Weighted_NASA_TLX_Score', 'Physical_Demand', 'Mental_Demand', 'Temporal_Demand', 'Performance', 'Effort', 'Frustration', 'gaming experience_yes']:
                 y = np.asarray(data_encoded[outcome])
                 model = sm.OLS(y, X).fit()
                 f.write(f"=== Regression Results: {outcome} ===\n")
@@ -756,41 +755,41 @@ if __name__ == "__main__":
         'Overall_Performance': 'mean',
     }).reset_index()
     
-    ## Plotting the data with regression lines
-    plot_with_regression('Delays', 'Maze_Score', grouped_data, 'orange', 'Time Delay (ms)', 'Maze_Score', 'Maze Score vs. Time Delays')
-    plot_with_regression('Delays', 'Driving_Performance', grouped_data, 'blue', 'Time Delay (ms)', 'Driving_Performance (%)', 'Driving_Performance vs. Time Delays')
-    plot_with_regression('Delays', 'Overall_Performance', grouped_data, 'green', 'Time Delay (ms)', 'Overall_Performance', 'Overall Performance (Driving + Maze) vs. Time Delays')
+    # ## Plotting the data with regression lines
+    # plot_with_regression('Delays', 'Maze_Score', grouped_data, 'orange', 'Time Delay (ms)', 'Maze_Score', 'Maze Score vs. Time Delays')
+    # plot_with_regression('Delays', 'Driving_Performance', grouped_data, 'blue', 'Time Delay (ms)', 'Driving_Performance (%)', 'Driving_Performance vs. Time Delays')
+    # plot_with_regression('Delays', 'Overall_Performance', grouped_data, 'green', 'Time Delay (ms)', 'Overall_Performance', 'Overall Performance (Driving + Maze) vs. Time Delays')
 
-    #  Calculate and plot statistics by delay
-    calculate_and_plot_performance_by_delays(data)
+    # #  Calculate and plot statistics by delay
+    # calculate_and_plot_performance_by_delays(data)
 
-    plot_correlation_heatmap(data)
-    plot_boxplots(data)
-    calculate_and_plot_learning_effect_barplot(data)
+    # plot_correlation_heatmap(data)
+    # plot_boxplots(data)
+    # calculate_and_plot_learning_effect_barplot(data)
 
-    # # Plot individual participant performance
-    plot_all_metrics_separately(data)
-    plot_all_metrics_separately_boxplot(data)
+    # # # Plot individual participant performance
+    # plot_all_metrics_separately(data)
+    # plot_all_metrics_separately_boxplot(data)
 
-    # Plot individual participant performance vs. delays
-    plot_all_metrics_vs_delays(data)
-    plot_all_metrics_vs_delays_lineplot(data)
+    # # Plot individual participant performance vs. delays
+    # plot_all_metrics_vs_delays(data)
+    # plot_all_metrics_vs_delays_lineplot(data)
 
     # Call the function with your dataset
     statistical_analysis(data)
 
-    #Comprehensive regression analysis
-    comprehensive_regression_analysis(data)
+    # #Comprehensive regression analysis
+    # comprehensive_regression_analysis(data)
 
-    # # #Output summary statistics
-    output_summary_statistics(data)
+    # # # #Output summary statistics
+    # output_summary_statistics(data)
 
-    # # #Calculate and plot statistics
-    calculate_and_plot_statistics(data)
+    # # # #Calculate and plot statistics
+    # calculate_and_plot_statistics(data)
 
-    # Calculate baseline performance
-    baseline_performance = calculate_baseline_performance(data, metric='Time_Scores')
-    plot_baseline_performance(baseline_performance, y='Time_Scores')
+    # # Calculate baseline performance
+    # baseline_performance = calculate_baseline_performance(data, metric='Time_Scores')
+    # plot_baseline_performance(baseline_performance, y='Time_Scores')
 
 
 
