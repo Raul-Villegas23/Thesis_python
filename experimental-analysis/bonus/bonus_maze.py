@@ -3,6 +3,7 @@ import numpy as np
 from matplotlib.widgets import Button
 import csv
 import os
+import time  # For tracking timing of user actions
 
 def draw_maze():
     # Define grid size and initialize the maze array
@@ -16,25 +17,10 @@ def draw_maze():
 
     # Define the correct path (excluding start and finish)
     correct_path = {
-        (1, 0),
-        (2, 0),
-        (3, 0),
-        (4, 0),
-        (4, 1),
-        (4, 2),
-        (3, 2),
-        (2, 2),
-        (1, 2),
-        (0, 2),
-        (0, 3),
-        (0, 4),
-        (1, 4),
-        (2, 4),
-        (2, 5),
-        (2, 6),
-        (3, 6),
-        (4, 6),
-        (5, 6)
+        (1, 0), (2, 0), (3, 0), (4, 0),
+        (4, 1), (4, 2), (3, 2), (2, 2), (1, 2),
+        (0, 2), (0, 3), (0, 4), (1, 4), (2, 4),
+        (2, 5), (2, 6), (3, 6), (4, 6), (5, 6)
     }
 
     fig, ax = plt.subplots(figsize=(7, 7))
@@ -52,8 +38,11 @@ def draw_maze():
     ax.set_ylim(grid_size - 0.5, -0.5)
 
     user_path = set()
+    click_times = []  # To store timing of each click
+    selection_sequence = []  # To store order of block selections
     error_text = ax.text(0.5, 1.05, '', transform=ax.transAxes,
                          fontsize=14, ha='center', va='center', color='black', weight='bold')
+    start_time = time.time()  # Record the start time of the task
 
     def onclick(event):
         # Check if the click is within the plot area, not on the button
@@ -69,6 +58,8 @@ def draw_maze():
                         # Select the block if it was not already selected
                         user_path.add((iy, ix))
                         maze[iy, ix] = SELECTED
+                        selection_sequence.append((iy, ix))  # Track selection sequence
+                        click_times.append(time.time())  # Record the time of this selection
                     img.set_data(maze)
                     fig.canvas.draw_idle()
 
@@ -88,7 +79,7 @@ def draw_maze():
                 maze[y, x] = INCORRECT  # Gray for incorrect
         img.set_data(maze)
 
-        # Define weights
+        # Define weights for error scoring
         w_i = 0.5  # Weight for incorrect selections
         w_m = 0.5  # Weight for missed selections
 
@@ -104,32 +95,27 @@ def draw_maze():
         weighted_error = (incorrect_weighted + missed_weighted) * 100
         score = 100 - weighted_error
 
+        # Calculate task completion time
+        end_time = time.time()
+        total_time = end_time - start_time  # Total time in seconds
+
         # Update the error percentage text on the plot
         error_text.set_text(f'Score: {score:.2f}%')
 
         # Ensure the figure is updated
         fig.canvas.draw_idle()
 
-        # Determine attempt number
+        # Save the maze score to CSV
         file_exists = os.path.exists('maze_results.csv')
-        attempt_number = 1
-        if file_exists:
-            with open('maze_results.csv', mode='r') as file:
-                reader = csv.reader(file)
-                lines = list(reader)
-                attempt_number = len(lines) if lines else 1
 
-        # Append the results to a CSV file
         with open('maze_results.csv', mode='a', newline='') as file:
             writer = csv.writer(file)
             if not file_exists:
-                writer.writerow(['Maze score'])
-            writer.writerow([attempt_number, f'{score:.2f}'])
+                writer.writerow(['Maze Score'])  # Write header if the file doesn't exist
+            writer.writerow([f'{score:.2f}'])
 
         # Print evaluation results
-        print(f"Correctly selected blocks: {len(correct_selections)}")
-        print(f"Incorrect selections: {len(incorrect_selections)}")
-        print(f"Missed correct blocks: {len(missed_selections)}")
+        print(f"Score: {score:.2f}%")
 
     # Button to finalize selections
     ax_button = plt.axes([0.7, 0.025, 0.25, 0.075])

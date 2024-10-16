@@ -26,7 +26,7 @@ path_x = np.array(path_x)
 path_y = np.array(path_y)
 
 # Add Gaussian noise to the path to simulate real-world noise (small deviations)
-noise_std_dev = 0.0  # Standard deviation of noise (adjust as needed)
+noise_std_dev = 0.25  # Standard deviation of noise (adjust as needed)
 noise_x = np.random.normal(0, noise_std_dev, path_x.shape)  # Noise for X
 noise_y = np.random.normal(0, noise_std_dev, path_y.shape)  # Noise for Y
 
@@ -35,17 +35,14 @@ noisy_path_x = path_x + noise_x
 noisy_path_y = path_y + noise_y
 
 # Interpolate the path to get smooth transitions between the grid points
-interpolated_time = np.linspace(0, 60, 500)  # 500 points over 60 seconds for smoother path
+interpolated_time = np.linspace(0, 60, 1000)  # 1000 points over 60 seconds for smoother path
 p_target_x = np.interp(interpolated_time, time, noisy_path_x)  # Interpolating x positions
 p_target_y = np.interp(interpolated_time, time, noisy_path_y)  # Interpolating y positions
 
-# Define delays and their corresponding alpha values from the dataset, with alpha = high for delay = 0
-delays_alpha = {
-    0: 1000,        # High alpha (instantaneous response) for 0 delay
+# Define delays and their corresponding alpha values
+delays_alpha = {  # High alpha (instantaneous response) for 0 delay
     80: 12.5,
-    320: 3.13,
     600: 1.67,
-    1000: 1.0,
     1800: 0.56
 }
 
@@ -57,17 +54,22 @@ alpha_values = [delays_alpha[delay] for delay in delay_values]
 p_camera_x = {delay: np.zeros_like(p_target_x) for delay in delay_values}
 p_camera_y = {delay: np.zeros_like(p_target_y) for delay in delay_values}
 
-# Initial camera positions are the same as the target at the first time step
-for delay in delay_values:
-    p_camera_x[delay][0] = p_target_x[0]
-    p_camera_y[delay][0] = p_target_y[0]
+# Function to get delayed target position
+def get_delayed_index(t, delay, time_step):
+    delayed_time = interpolated_time[t] - delay / 1000.0  # Convert delay to seconds
+    if delayed_time < 0:
+        return 0  # If the delay pushes us before the start of the simulation, stay at the first position
+    return np.searchsorted(interpolated_time, delayed_time)
 
-# Run the simulation based on the provided algorithm for each delay (using corresponding alpha)
+# Simulate the camera movement based on delayed target positions
 for delay, alpha in zip(delay_values, alpha_values):
     for t in range(1, len(interpolated_time)):
-        # Calculate the difference between target and camera positions (for x and y)
-        delta_p_x = p_target_x[t] - p_camera_x[delay][t-1]
-        delta_p_y = p_target_y[t] - p_camera_y[delay][t-1]
+        # Get the delayed index for the target position
+        delayed_index = get_delayed_index(t, delay, interpolated_time[t] - interpolated_time[t-1])
+
+        # Calculate the difference between delayed target and camera positions (for x and y)
+        delta_p_x = p_target_x[delayed_index] - p_camera_x[delay][t-1]
+        delta_p_y = p_target_y[delayed_index] - p_camera_y[delay][t-1]
         
         # Interpolation factor based on lag speed (alpha) and time step
         f = 1 - np.exp(-alpha * (interpolated_time[t] - interpolated_time[t-1]))
@@ -77,49 +79,53 @@ for delay, alpha in zip(delay_values, alpha_values):
         p_camera_y[delay][t] = p_camera_y[delay][t-1] + f * delta_p_y
 
 # Generate a square wave for the target path (second plot)
-frequency = 0.05  # Controls the frequency of the square wave (slow changes for the square path)
+frequency = 0.03  # Controls the frequency of the square wave (slow changes for the square path)
 p_square_wave = signal.square(2 * np.pi * frequency * interpolated_time)
 
 # Initialize the camera positions for the square wave target (for different delays)
 p_camera_square = {delay: np.zeros_like(p_square_wave) for delay in delay_values}
 
-# Initial camera positions (square wave simulation)
-for delay in delay_values:
-    p_camera_square[delay][0] = p_square_wave[0]
-
 # Simulate the camera positions for the square wave target path
 for delay, alpha in zip(delay_values, alpha_values):
     for t in range(1, len(interpolated_time)):
-        # Calculate the difference between target and camera position for square wave
-        delta_p = p_square_wave[t] - p_camera_square[delay][t-1]
+        # Get the delayed index for the square wave target position
+        delayed_index = get_delayed_index(t, delay, interpolated_time[t] - interpolated_time[t-1])
+
+        # Calculate the difference between delayed target and camera position for square wave
+        delta_p = p_square_wave[delayed_index] - p_camera_square[delay][t-1]
         f = 1 - np.exp(-alpha * (interpolated_time[t] - interpolated_time[t-1]))
         p_camera_square[delay][t] = p_camera_square[delay][t-1] + f * delta_p
 
-# Plot both figures (Noisy Maze path and Square wave path)
-fig, axs = plt.subplots(2, 1, figsize=(10, 12))
+# Plotting
+
+# Define color map for delays
+colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
 
 # Plot 1: Target position with the noisy maze-like path
-axs[0].plot(p_target_x, p_target_y, label="Target Path", linestyle='dashed', color='black')
-for delay in delay_values:
-    axs[0].plot(p_camera_x[delay], p_camera_y[delay], label=f'Delay = {delay} ms')
+fig1 = plt.figure(figsize=(10, 6))
+plt.plot(p_target_x, p_target_y, label="Target Path", linestyle='dashed', color='black', linewidth=2, marker='o', markersize=4)
+for i, delay in enumerate(delay_values):
+    plt.plot(p_camera_x[delay], p_camera_y[delay], label=f'Delay = {delay} ms', color=colors[i], linewidth=2, linestyle='-', marker='x')
 
-axs[0].set_title('First-Order Delay Simulation with Maze Path (Lagged Camera Positions)')
-axs[0].set_xlabel('X Position (Meters)')
-axs[0].set_ylabel('Y Position (Meters)')
-axs[0].legend(loc='upper right')
-axs[0].grid(True)
+plt.title('First-Order Delay Simulation with Maze Path (Lagged Camera Positions)', fontsize=16, fontweight='bold')
+plt.xlabel('X Position (Meters)', fontsize=12)
+plt.ylabel('Y Position (Meters)', fontsize=12)
+plt.legend(loc='upper left', fontsize=10, frameon=True, fancybox=True, framealpha=0.7)
+plt.grid(True, which='both', linestyle='--', alpha=0.6)
+plt.tight_layout()
 
 # Plot 2: Square wave target with lagged camera responses
-axs[1].plot(interpolated_time, p_square_wave, label="Target Path (Square Wave)", linestyle='dashed', color='black')
-for delay in delay_values:
-    axs[1].plot(interpolated_time, p_camera_square[delay], label=f'Delay = {delay} ms')
+fig2 = plt.figure(figsize=(10, 6))
+plt.plot(interpolated_time, p_square_wave, label="Target Path (Square Wave)", linestyle='dashed', color='black', linewidth=2, marker='o', markersize=4)
+for i, delay in enumerate(delay_values):
+    plt.plot(interpolated_time, p_camera_square[delay], label=f'Delay = {delay} ms', color=colors[i], linewidth=2, linestyle='-', marker='x')
 
-axs[1].set_title('First-Order Delay Simulation with Square Wave Target Path')
-axs[1].set_xlabel('Time (seconds)')
-axs[1].set_ylabel('Position')
-axs[1].legend(loc='upper right')
-axs[1].grid(True)
-
-# Show the plots
+plt.title('First-Order Delay Simulation with Square Wave Target Path', fontsize=16, fontweight='bold')
+plt.xlabel('Time (seconds)', fontsize=12)
+plt.ylabel('Position', fontsize=12)
+plt.legend(loc='upper left', fontsize=10, frameon=True, fancybox=True, framealpha=0.7)
+plt.grid(True, which='both', linestyle='--', alpha=0.6)
 plt.tight_layout()
+
+# Show both plots in separate windows
 plt.show()

@@ -212,7 +212,7 @@ temporal_demand_entry = tk.Entry(app)
 temporal_demand_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
 tk.Label(app, text="How hurried or rushed was the pace of the task?").grid(row=5, column=0, columnspan=2, padx=10, pady=5, sticky="w")
 
-tk.Label(app, text="Performance (0-100):").grid(row=6, column=0, padx=10, pady=5, sticky="w")
+tk.Label(app, text="Performance (0-100) (Good/Poor):").grid(row=6, column=0, padx=10, pady=5, sticky="w")
 performance_entry = tk.Entry(app)
 performance_entry.grid(row=6, column=1, padx=10, pady=5, sticky="w")
 tk.Label(app, text="How successful were you in accomplishing what you were asked to do?").grid(row=7, column=0, columnspan=2, padx=10, pady=5, sticky="w")

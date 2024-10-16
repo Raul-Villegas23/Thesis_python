@@ -716,7 +716,7 @@ def perform_non_parametric_tests(data, dependent_var, independent_var):
 
 # Main script execution
 if __name__ == "__main__":
-    csv_file = 'updated.csv'
+    csv_file = 'updated_scores_inverted_performance.csv'
     data = load_and_preprocess_data(csv_file)
 
     # Define weights for NASA TLX dimensions
@@ -737,16 +737,16 @@ if __name__ == "__main__":
     # Perform ANOVA
     dependent_vars = ['Driving_Performance', 'Maze_Score', 'Weighted_NASA_TLX_Score', 'Physical_Demand', 'Mental_Demand', 'Temporal_Demand', 'Performance', 'Effort', 'Frustration']
     independent_var = 'Delays'
-    for var in dependent_vars:
-     # Perform ANOVA
-        perform_anova(data, var, independent_var)
-        model=ols(f'{var} ~ C({independent_var})', data=data).fit()
-        # Check ANOVA assumptions
-        check_anova_assumptions(model, data, var, independent_var)
+    # for var in dependent_vars:
+    #  # Perform ANOVA
+    #     perform_anova(data, var, independent_var)
+    #     model=ols(f'{var} ~ C({independent_var})', data=data).fit()
+    #     # Check ANOVA assumptions
+    #     check_anova_assumptions(model, data, var, independent_var)
     
-    for var in dependent_vars:
-        print(f"--- Non-parametric tests for {var} ---")
-        perform_non_parametric_tests(data, var, independent_var)
+    # for var in dependent_vars:
+    #     print(f"--- Non-parametric tests for {var} ---")
+    #     perform_non_parametric_tests(data, var, independent_var)
 
     # Corrected column names for aggregation
     grouped_data = data.groupby('Delays').agg({
@@ -761,10 +761,10 @@ if __name__ == "__main__":
     # plot_with_regression('Delays', 'Overall_Performance', grouped_data, 'green', 'Time Delay (ms)', 'Overall_Performance', 'Overall Performance (Driving + Maze) vs. Time Delays')
 
     # #  Calculate and plot statistics by delay
-    # calculate_and_plot_performance_by_delays(data)
+    calculate_and_plot_performance_by_delays(data)
 
-    # plot_correlation_heatmap(data)
-    # plot_boxplots(data)
+    # plot_corqqrelation_heatmap(data)
+    plot_boxplots(data)
     # calculate_and_plot_learning_effect_barplot(data)
 
     # # # Plot individual participant performance
@@ -776,16 +776,16 @@ if __name__ == "__main__":
     # plot_all_metrics_vs_delays_lineplot(data)
 
     # Call the function with your dataset
-    statistical_analysis(data)
+    # statistical_analysis(data)
 
     # #Comprehensive regression analysis
     # comprehensive_regression_analysis(data)
 
     # # # #Output summary statistics
-    # output_summary_statistics(data)
+    output_summary_statistics(data)
 
     # # # #Calculate and plot statistics
-    # calculate_and_plot_statistics(data)
+    calculate_and_plot_statistics(data)
 
     # # Calculate baseline performance
     # baseline_performance = calculate_baseline_performance(data, metric='Time_Scores')
