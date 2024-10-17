@@ -1,131 +1,59 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import signal  # For generating the square wave
 
-# Define the grid coordinates of the correct path (each step is 10 meters)
-correct_path = [
-    (1, 0), (2, 0), (3, 0), (4, 0),  # Moving right
-    (4, 1), (4, 2),                  # Moving up
-    (3, 2), (2, 2), (1, 2), (0, 2),  # Moving left
-    (0, 3), (0, 4),                  # Moving up
-    (1, 4), (2, 4),                  # Moving right
-    (2, 5), (2, 6),                  # Moving up
-    (3, 6), (4, 6)       # Moving right
-]
+# Parameters
+desired_times = [1.0, 0.5, 0.25]  # Desired time constants in seconds
+delta_t = 0.01                    # Time step
+total_time = 5                    # Total simulation time
+n_steps = int(total_time / delta_t)  # Number of time steps
 
-# Scale the path so each step is 10 meters
-correct_path = [(x * 10, y * 10) for x, y in correct_path]  # Scaling coordinates by 10 meters
+# Target position (constant for simplicity)
+p_target = 1.0
 
-# Convert the path coordinates into continuous positions over time (over 60 seconds)
-num_points = len(correct_path)
-time = np.linspace(0, 60, num_points)  # Simulating over 60 seconds
+# Time vector
+time = np.linspace(0, total_time, n_steps)
 
-# Extract x and y coordinates from the correct path
-path_x, path_y = zip(*correct_path)
-path_x = np.array(path_x)
-path_y = np.array(path_y)
+# Initialize target positions
+target_positions = [p_target] * n_steps  # Store target positions
 
-# Add Gaussian noise to the path to simulate real-world noise (small deviations)
-noise_std_dev = 0.25  # Standard deviation of noise (adjust as needed)
-noise_x = np.random.normal(0, noise_std_dev, path_x.shape)  # Noise for X
-noise_y = np.random.normal(0, noise_std_dev, path_y.shape)  # Noise for Y
+# Plot setup
+plt.figure(figsize=(10, 6))
 
-# Add noise to the path
-noisy_path_x = path_x + noise_x
-noisy_path_y = path_y + noise_y
-
-# Interpolate the path to get smooth transitions between the grid points
-interpolated_time = np.linspace(0, 60, 1000)  # 1000 points over 60 seconds for smoother path
-p_target_x = np.interp(interpolated_time, time, noisy_path_x)  # Interpolating x positions
-p_target_y = np.interp(interpolated_time, time, noisy_path_y)  # Interpolating y positions
-
-# Define delays and their corresponding alpha values
-delays_alpha = {  # High alpha (instantaneous response) for 0 delay
-    80: 12.5,
-    600: 1.67,
-    1800: 0.56
-}
-
-# Extract the delay values and alpha (lag speed) values for plotting
-delay_values = sorted(delays_alpha.keys())
-alpha_values = [delays_alpha[delay] for delay in delay_values]
-
-# Initialize the camera position (start at the same position as the target for simplicity)
-p_camera_x = {delay: np.zeros_like(p_target_x) for delay in delay_values}
-p_camera_y = {delay: np.zeros_like(p_target_y) for delay in delay_values}
-
-# Function to get delayed target position
-def get_delayed_index(t, delay, time_step):
-    delayed_time = interpolated_time[t] - delay / 1000.0  # Convert delay to seconds
-    if delayed_time < 0:
-        return 0  # If the delay pushes us before the start of the simulation, stay at the first position
-    return np.searchsorted(interpolated_time, delayed_time)
-
-# Simulate the camera movement based on delayed target positions
-for delay, alpha in zip(delay_values, alpha_values):
-    for t in range(1, len(interpolated_time)):
-        # Get the delayed index for the target position
-        delayed_index = get_delayed_index(t, delay, interpolated_time[t] - interpolated_time[t-1])
-
-        # Calculate the difference between delayed target and camera positions (for x and y)
-        delta_p_x = p_target_x[delayed_index] - p_camera_x[delay][t-1]
-        delta_p_y = p_target_y[delayed_index] - p_camera_y[delay][t-1]
+# Loop over each desired time constant (1 sec, 500 ms, 250 ms)
+for desired_time in desired_times:
+    # Calculate alpha for the given desired time constant
+    alpha = 1 / desired_time
+    
+    # Initialize camera position
+    p_camera = 0.0  # Camera starts at 0
+    camera_positions = [p_camera]  # Store camera positions over time
+    
+    # Simulation loop
+    for t in range(1, n_steps):
+        # Calculate difference between target and camera
+        delta_p = p_target - p_camera
         
-        # Interpolation factor based on lag speed (alpha) and time step
-        f = 1 - np.exp(-alpha * (interpolated_time[t] - interpolated_time[t-1]))
+        # Compute interpolation factor based on alpha and delta_t
+        f = 1 - np.exp(-alpha * delta_t)
         
-        # Update camera positions using the first-order delay model
-        p_camera_x[delay][t] = p_camera_x[delay][t-1] + f * delta_p_x
-        p_camera_y[delay][t] = p_camera_y[delay][t-1] + f * delta_p_y
+        # Update camera position
+        p_camera = p_camera + f * delta_p
+        
+        # Store the updated position
+        camera_positions.append(p_camera)
+    
+    # Plot the camera positions for this alpha
+    plt.plot(time, camera_positions, label=f'Camera Position (Time Constant = {desired_time}s)', linewidth=2)
 
-# Generate a square wave for the target path (second plot)
-frequency = 0.03  # Controls the frequency of the square wave (slow changes for the square path)
-p_square_wave = signal.square(2 * np.pi * frequency * interpolated_time)
+# Plot target position
+plt.plot(time, target_positions, label='Target Position', color='red', linestyle='--', linewidth=2)
 
-# Initialize the camera positions for the square wave target (for different delays)
-p_camera_square = {delay: np.zeros_like(p_square_wave) for delay in delay_values}
+# Configure plot
+plt.title('Camera Lag Update (First-Order Lag) for Different Time Constants', fontsize=16)
+plt.xlabel('Time (s)', fontsize=14)
+plt.ylabel('Position', fontsize=14)
+plt.legend(loc='best', fontsize=12)
+plt.grid(True)
 
-# Simulate the camera positions for the square wave target path
-for delay, alpha in zip(delay_values, alpha_values):
-    for t in range(1, len(interpolated_time)):
-        # Get the delayed index for the square wave target position
-        delayed_index = get_delayed_index(t, delay, interpolated_time[t] - interpolated_time[t-1])
-
-        # Calculate the difference between delayed target and camera position for square wave
-        delta_p = p_square_wave[delayed_index] - p_camera_square[delay][t-1]
-        f = 1 - np.exp(-alpha * (interpolated_time[t] - interpolated_time[t-1]))
-        p_camera_square[delay][t] = p_camera_square[delay][t-1] + f * delta_p
-
-# Plotting
-
-# Define color map for delays
-colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
-
-# Plot 1: Target position with the noisy maze-like path
-fig1 = plt.figure(figsize=(10, 6))
-plt.plot(p_target_x, p_target_y, label="Target Path", linestyle='dashed', color='black', linewidth=2, marker='o', markersize=4)
-for i, delay in enumerate(delay_values):
-    plt.plot(p_camera_x[delay], p_camera_y[delay], label=f'Delay = {delay} ms', color=colors[i], linewidth=2, linestyle='-', marker='x')
-
-plt.title('First-Order Delay Simulation with Maze Path (Lagged Camera Positions)', fontsize=16, fontweight='bold')
-plt.xlabel('X Position (Meters)', fontsize=12)
-plt.ylabel('Y Position (Meters)', fontsize=12)
-plt.legend(loc='upper left', fontsize=10, frameon=True, fancybox=True, framealpha=0.7)
-plt.grid(True, which='both', linestyle='--', alpha=0.6)
-plt.tight_layout()
-
-# Plot 2: Square wave target with lagged camera responses
-fig2 = plt.figure(figsize=(10, 6))
-plt.plot(interpolated_time, p_square_wave, label="Target Path (Square Wave)", linestyle='dashed', color='black', linewidth=2, marker='o', markersize=4)
-for i, delay in enumerate(delay_values):
-    plt.plot(interpolated_time, p_camera_square[delay], label=f'Delay = {delay} ms', color=colors[i], linewidth=2, linestyle='-', marker='x')
-
-plt.title('First-Order Delay Simulation with Square Wave Target Path', fontsize=16, fontweight='bold')
-plt.xlabel('Time (seconds)', fontsize=12)
-plt.ylabel('Position', fontsize=12)
-plt.legend(loc='upper left', fontsize=10, frameon=True, fancybox=True, framealpha=0.7)
-plt.grid(True, which='both', linestyle='--', alpha=0.6)
-plt.tight_layout()
-
-# Show both plots in separate windows
+# Show plot
 plt.show()
