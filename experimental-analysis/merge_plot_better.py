@@ -135,7 +135,7 @@ def statistical_analysis(data):
 
 # Main script execution
 if __name__ == "__main__":
-    csv_file = 'updated.csv'
+    csv_file = 'updated_scores_inverted_performance.csv'
     data = load_and_preprocess_data(csv_file)
 
     # Calculate performance metrics
