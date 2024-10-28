@@ -2,58 +2,64 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Parameters
-desired_times = [1.0, 0.5, 0.25]  # Desired time constants in seconds
-delta_t = 0.01                    # Time step
-total_time = 5                    # Total simulation time
-n_steps = int(total_time / delta_t)  # Number of time steps
+time_steps = 200  # Number of time steps to observe the stop-and-move effect
+update_rate = 1 / 60  # Update rate in seconds (60 Hz)
+delays = [50, 500, 1000]  # Delays in milliseconds
+stop_time = 2  # Time (in seconds) after which the target stops moving
 
-# Target position (constant for simplicity)
-p_target = 1.0
+# Generate a sample "target" movement (sinusoidal pattern until stop_time)
+time = np.arange(time_steps) * update_rate
+target_movement = np.sin(2 * np.pi * time / max(time)) * 10  # Max 10 units displacement
+stop_index = int(stop_time / update_rate)
+target_movement[stop_index:] = target_movement[stop_index]  # Make the target stationary after stop_time
 
-# Time vector
-time = np.linspace(0, total_time, n_steps)
+# Helper function to simulate delay without smoothing
+def simulate_delay_no_smoothing(target, delay_ms):
+    delay_steps = int(delay_ms / 1000 / update_rate)  # Convert delay to steps
+    delayed_movement = np.zeros_like(target)
+    for i in range(len(target)):
+        # Apply delay by copying past values directly
+        if i < delay_steps:
+            delayed_movement[i] = target[0]  # Start at initial position until delay has passed
+        else:
+            delayed_movement[i] = target[i - delay_steps]
+    return delayed_movement
 
-# Initialize target positions
-target_positions = [p_target] * n_steps  # Store target positions
+# Helper function to simulate delay with smoothing (exponential smoothing)
+def simulate_delay_with_smoothing(target, delay_ms):
+    delay_s = delay_ms / 1000  # Convert to seconds
+    alpha = update_rate / (delay_s + update_rate)  # Smoothing factor based on delay
+    delayed_movement = np.zeros_like(target)
+    delayed_movement[0] = target[0]
+    for i in range(1, len(target)):
+        delayed_movement[i] = alpha * target[i] + (1 - alpha) * delayed_movement[i - 1]
+    return delayed_movement
 
-# Plot setup
-plt.figure(figsize=(10, 6))
+# Simulate delays without smoothing and with smoothing
+delayed_movements_no_smoothing = [simulate_delay_no_smoothing(target_movement, delay) for delay in delays]
+delayed_movements_with_smoothing = [simulate_delay_with_smoothing(target_movement, delay) for delay in delays]
 
-# Loop over each desired time constant (1 sec, 500 ms, 250 ms)
-for desired_time in desired_times:
-    # Calculate alpha for the given desired time constant
-    alpha = 1 / desired_time
-    
-    # Initialize camera position
-    p_camera = 0.0  # Camera starts at 0
-    camera_positions = [p_camera]  # Store camera positions over time
-    
-    # Simulation loop
-    for t in range(1, n_steps):
-        # Calculate difference between target and camera
-        delta_p = p_target - p_camera
-        
-        # Compute interpolation factor based on alpha and delta_t
-        f = 1 - np.exp(-alpha * delta_t)
-        
-        # Update camera position
-        p_camera = p_camera + f * delta_p
-        
-        # Store the updated position
-        camera_positions.append(p_camera)
-    
-    # Plot the camera positions for this alpha
-    plt.plot(time, camera_positions, label=f'Camera Position (Time Constant = {desired_time}s)', linewidth=2)
+# Plotting
+fig, axs = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
 
-# Plot target position
-plt.plot(time, target_positions, label='Target Position', color='red', linestyle='--', linewidth=2)
+# Plot no-smoothing subfigure
+axs[0].plot(time, target_movement, label="Target Movement (Stop-and-Move)", linewidth=2, linestyle='--', color='black')
+for i, delay in enumerate(delays):
+    axs[0].plot(time, delayed_movements_no_smoothing[i], label=f"Delayed Movement ({delay} ms)", linewidth=1.5)
+axs[0].set_title("Without Smoothing")
+axs[0].set_xlabel("Time (s)")
+axs[0].set_ylabel("Position")
+axs[0].legend()
+axs[0].grid(True)
 
-# Configure plot
-plt.title('Camera Lag Update (First-Order Lag) for Different Time Constants', fontsize=16)
-plt.xlabel('Time (s)', fontsize=14)
-plt.ylabel('Position', fontsize=14)
-plt.legend(loc='best', fontsize=12)
-plt.grid(True)
+# Plot smoothing subfigure
+axs[1].plot(time, target_movement, label="Target Movement (Stop-and-Move)", linewidth=2, linestyle='--', color='black')
+for i, delay in enumerate(delays):
+    axs[1].plot(time, delayed_movements_with_smoothing[i], label=f"Delayed Movement ({delay} ms)", linewidth=1.5)
+axs[1].set_title("With Smoothing")
+axs[1].set_xlabel("Time (s)")
+axs[1].legend()
+axs[1].grid(True)
 
-# Show plot
+plt.suptitle("Robotic Telepresence Platform with and without Smoothing (Stop-and-Move Strategy)")
 plt.show()
